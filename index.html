@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel de Tratativas — Frota</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="scan-line"></div>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark">RT</div>
+    <div>
+      <h1>Painel de Tratativas — Frota</h1>
+      <div class="sub">monitoramento de alertas em tempo real // arraste a exportação para atualizar</div>
+    </div>
+  </div>
+  <div class="filehint" id="filehint">nenhum arquivo carregado</div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="tab-btn active" data-tab="indicadores">Indicadores</button>
+  <button class="tab-btn" data-tab="dados">Dados</button>
+</nav>
+
+<main>
+  <div id="dropzone">
+    <div class="pulse-ring"></div>
+    <div class="icon">⇪</div>
+    <h2>Arraste a planilha de tratativas aqui</h2>
+    <p>ou clique para selecionar um arquivo .xlsx — os dados não saem do seu navegador</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+  </div>
+  <div id="status"></div>
+
+  <!-- ABA: INDICADORES -->
+  <div class="view" id="view-indicadores">
+    <div class="toprow">
+      <div class="meta" id="periodMeta"></div>
+      <button class="reset-btn" id="resetBtn">↺ carregar outra planilha</button>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi c-total"><div class="label">Total de alertas</div><div class="value" id="kpiTotal">—</div></div>
+      <div class="kpi c-ok"><div class="label">% tratados</div><div class="value" id="kpiTratados">—</div><div class="hint">qualquer interação no histórico conta como tratativa</div></div>
+      <div class="kpi c-time"><div class="label">Tempo médio resp.</div><div class="value" id="kpiTempo">—</div></div>
+      <div class="kpi c-fp"><div class="label">Taxa falso positivo</div><div class="value" id="kpiFP">—</div></div>
+      <div class="kpi c-pend"><div class="label">Pendentes</div><div class="value" id="kpiPend">—</div></div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <h3><span class="dot"></span>Alertas por tipo de evento</h3>
+        <table>
+          <thead><tr><th>Tipo</th><th class="num">Qtde</th><th class="num">%</th><th class="num">Tempo méd.</th><th class="num">Falso +</th></tr></thead>
+          <tbody id="tblTipo"></tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h3><span class="dot" style="background:var(--blue)"></span>Distribuição</h3>
+        <div class="chart-wrap"><canvas id="chartTipo"></canvas></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <h3><span class="dot" style="background:var(--amber)"></span>Top 10 veículos</h3>
+        <div class="chart-wrap small"><canvas id="chartPlacas"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3><span class="dot" style="background:var(--red)"></span>Por nível de risco</h3>
+        <table>
+          <thead><tr><th>Risco</th><th class="num">Qtde</th><th class="num">%</th></tr></thead>
+          <tbody id="tblRisco"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <h3><span class="dot" style="background:var(--teal)"></span>Alertas por dia</h3>
+        <div class="chart-wrap small"><canvas id="chartDia"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3><span class="dot"></span>Tratativas por usuário</h3>
+        <table>
+          <thead><tr><th>Usuário</th><th class="num">Qtde</th><th class="num">Tempo méd.</th><th class="num">Falso +</th></tr></thead>
+          <tbody id="tblUsuario"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ABA: DADOS (base, igual à aba "Dados" do Excel) -->
+  <div class="view" id="view-dados">
+    <div class="panel">
+      <h3><span class="dot"></span>Base de alertas</h3>
+      <div class="dados-toolbar" id="dadosToolbar"></div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Placa</th><th>Motorista</th><th>Data/Hora</th><th>Risco</th>
+              <th>Tipo de evento</th><th>Endereço</th><th>Status</th><th>Falso +</th>
+              <th>Usuário tratativa</th><th class="num">Tempo resp.</th>
+            </tr>
+          </thead>
+          <tbody id="tblDados"></tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <button id="prevPage">← anterior</button>
+        <span id="pageInfo"></span>
+        <button id="nextPage">próxima →</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>processamento local no navegador · nenhum dado é enviado a servidores</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
