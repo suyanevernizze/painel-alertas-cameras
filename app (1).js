@@ -404,6 +404,27 @@ window.AppDadosTable = { renderDadosTable };
 
   let currentData = [];
 
+  // Verificação defensiva: se alguma dependência não carregou (CDN bloqueado,
+  // bloqueador de anúncios, offline, ou um dos módulos não foi publicado
+  // junto), mostra uma mensagem clara em vez de a página ficar "sem reagir".
+  function checkDependencies() {
+    const missing = [];
+    if (window.__libError === 'xlsx' || typeof XLSX === 'undefined') missing.push('biblioteca de leitura de Excel (xlsx)');
+    if (window.__libError === 'chart' || typeof Chart === 'undefined') missing.push('biblioteca de gráficos (Chart.js)');
+    if (!window.AppParser) missing.push('módulo parser');
+    if (!window.AppStats) missing.push('módulo stats');
+    if (!window.AppFormat) missing.push('módulo format');
+    if (!window.AppDashboard) missing.push('módulo dashboard');
+    if (!window.AppDadosTable) missing.push('módulo dadosTable');
+    if (missing.length) {
+      setStatus('não foi possível carregar: ' + missing.join(', ') + '. Verifique sua conexão ou se o app.js está completo, e recarregue a página (Ctrl+F5).', 'err');
+      dropzone.style.opacity = '0.4';
+      dropzone.style.pointerEvents = 'none';
+      return false;
+    }
+    return true;
+  }
+
   ['dragenter', 'dragover'].forEach(ev => dropzone.addEventListener(ev, e => {
     e.preventDefault(); dropzone.classList.add('drag');
   }));
@@ -423,6 +444,8 @@ window.AppDadosTable = { renderDadosTable };
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
+
+  checkDependencies();
 
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
@@ -445,6 +468,7 @@ window.AppDadosTable = { renderDadosTable };
   }
 
   function handleFile(file) {
+    if (!checkDependencies()) return;
     setStatus('lendo arquivo…');
     const reader = new FileReader();
     reader.onload = e => {
