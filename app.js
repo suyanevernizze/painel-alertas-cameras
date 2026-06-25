@@ -514,7 +514,9 @@ window.AppDadosTable = { renderDadosTable };
     { kind: 'emoji', value: '📹' },
     { kind: 'emoji', value: '🚛' },
     { kind: 'emoji', value: '⚠️' },
-    { kind: 'emoji', value: '📹' },
+    { kind: 'emoji', value: '😴' },
+    { kind: 'emoji', value: '🚨' },
+    { kind: 'emoji', value: '📊' },
     { kind: 'brand', value: 'B' },
     { kind: 'emoji', value: '⚠️' },
   ];
@@ -547,7 +549,71 @@ window.AppDadosTable = { renderDadosTable };
     icon.textContent = type.value;
     b.appendChild(icon);
 
+    b.addEventListener('click', () => popBubble(b));
+
     container.appendChild(b);
+  }
+
+  function popBubble(b) {
+    if (b.classList.contains('pop')) return;
+
+    // captura a posição/tamanho REAIS da bolha antes de qualquer alteração,
+    // pra garantir que a explosão nasça exatamente onde ela estava.
+    const rect = b.getBoundingClientRect();
+    const parentRect = container.getBoundingClientRect();
+    const cx = rect.left - parentRect.left + rect.width / 2;
+    const cy = rect.top - parentRect.top + rect.height / 2;
+    const size = rect.width;
+
+    b.classList.add('pop');
+    // trava a bolha na posição capturada (em vez de deixar a animação de
+    // subida continuar/saltar) pra ela encolher exatamente onde foi clicada
+    b.style.left = (cx - size / 2) + 'px';
+    b.style.bottom = 'auto';
+    b.style.top = (cy - size / 2) + 'px';
+
+    // flash central (clarão da explosão)
+    const flash = document.createElement('div');
+    flash.className = 'pop-flash';
+    flash.style.width = size + 'px';
+    flash.style.height = size + 'px';
+    flash.style.left = (cx - size / 2) + 'px';
+    flash.style.top = (cy - size / 2) + 'px';
+    container.appendChild(flash);
+    setTimeout(() => flash.remove(), 420);
+
+    // anel de onda
+    const ripple = document.createElement('div');
+    ripple.className = 'pop-ripple';
+    ripple.style.width = size + 'px';
+    ripple.style.height = size + 'px';
+    ripple.style.left = (cx - size / 2) + 'px';
+    ripple.style.top = (cy - size / 2) + 'px';
+    container.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 570);
+
+    // fragmentos estilhaçando pra fora
+    const fragCount = 10 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < fragCount; i++) {
+      const frag = document.createElement('div');
+      frag.className = 'pop-fragment';
+      const fragSize = 5 + Math.random() * 7;
+      const angle = (Math.PI * 2 * i) / fragCount + Math.random() * 0.5;
+      const dist = size * 0.9 + Math.random() * size * 0.7;
+      frag.style.width = fragSize + 'px';
+      frag.style.height = fragSize + 'px';
+      frag.style.left = (cx - fragSize / 2) + 'px';
+      frag.style.top = (cy - fragSize / 2) + 'px';
+      frag.style.setProperty('--fx', Math.cos(angle) * dist + 'px');
+      frag.style.setProperty('--fy', Math.sin(angle) * dist + 'px');
+      container.appendChild(frag);
+      setTimeout(() => frag.remove(), 570);
+    }
+
+    setTimeout(() => {
+      b.remove();
+      spawnBubble(); // mantém o número de bolhas no ar
+    }, 250);
   }
 
   for (let i = 0; i < MAX_BUBBLES; i++) spawnBubble();
