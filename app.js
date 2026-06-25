@@ -501,3 +501,54 @@ window.AppDadosTable = { renderDadosTable };
     reader.readAsArrayBuffer(file);
   }
 })();
+
+/**
+ * Fundo animado: bolhas subindo com mini ícones de câmera de caminhão,
+ * alerta e a marca "B" da Binotto, substituindo a antiga linha de scan.
+ */
+(function () {
+  const container = document.getElementById('bubbleBg');
+  if (!container) return;
+  // tipos de bolha: emoji (câmera de caminhão / alerta) ou a marca "B"
+  const types = [
+    { kind: 'emoji', value: '📹' },
+    { kind: 'emoji', value: '🚛' },
+    { kind: 'emoji', value: '⚠️' },
+    { kind: 'emoji', value: '📹' },
+    { kind: 'brand', value: 'B' },
+    { kind: 'emoji', value: '⚠️' },
+  ];
+  const MAX_BUBBLES = 18;
+
+  function spawnBubble() {
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    const size = 26 + Math.random() * 46; // 26–72px
+    const left = Math.random() * 100; // %
+    const duration = 14 + Math.random() * 14; // 14–28s
+    const delay = -Math.random() * duration; // entra já em movimento
+    const drift = (Math.random() * 60 - 30) + 'px';
+    b.style.width = size + 'px';
+    b.style.height = size + 'px';
+    b.style.left = left + '%';
+    b.style.setProperty('--drift', drift);
+    b.style.animationDuration = duration + 's';
+    b.style.animationDelay = delay + 's';
+
+    const type = types[Math.floor(Math.random() * types.length)];
+    const icon = document.createElement('span');
+    if (type.kind === 'brand') {
+      icon.className = 'icon icon-brand';
+      icon.style.fontSize = (size * 0.4) + 'px';
+    } else {
+      icon.className = 'icon';
+      icon.style.fontSize = (size * 0.45) + 'px';
+    }
+    icon.textContent = type.value;
+    b.appendChild(icon);
+
+    container.appendChild(b);
+  }
+
+  for (let i = 0; i < MAX_BUBBLES; i++) spawnBubble();
+})();
