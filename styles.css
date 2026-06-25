@@ -26,6 +26,48 @@ body{min-height:100vh;}
   display:flex; align-items:center; justify-content:center;
   animation-name:bubbleRise; animation-timing-function:ease-in; animation-iteration-count:infinite;
   filter:drop-shadow(0 0 6px rgba(54,194,180,0.12));
+  pointer-events:auto; cursor:pointer;
+}
+.bubble:hover{ border-color:rgba(54,194,180,0.5); }
+.bubble.pop{
+  pointer-events:none; transform-origin:center;
+  animation:bubblePop .25s ease-out forwards;
+}
+.bubble.pop .icon{ filter:brightness(2.5) !important; }
+@keyframes bubblePop{
+  0%{ transform:scale(1); opacity:1; }
+  30%{ transform:scale(1.4); opacity:1; }
+  100%{ transform:scale(0); opacity:0; }
+}
+
+.pop-flash{
+  position:absolute; border-radius:50%; pointer-events:none;
+  background:radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(54,194,180,0.85) 35%, rgba(54,194,180,0) 70%);
+  animation:popFlash .4s ease-out forwards;
+}
+@keyframes popFlash{
+  0%{ transform:scale(0.2); opacity:1; }
+  100%{ transform:scale(2.8); opacity:0; }
+}
+
+.pop-ripple{
+  position:absolute; border-radius:50%; pointer-events:none;
+  border:2.5px solid rgba(54,194,180,0.9);
+  animation:popRipple .55s ease-out forwards;
+}
+@keyframes popRipple{
+  0%{ transform:scale(0.3); opacity:1; }
+  100%{ transform:scale(3.2); opacity:0; }
+}
+
+.pop-fragment{
+  position:absolute; border-radius:50%; pointer-events:none;
+  background:radial-gradient(circle, #fff 0%, rgba(54,194,180,1) 40%, rgba(54,194,180,0) 100%);
+  animation:popFragment .55s cubic-bezier(.25,.8,.4,1) forwards;
+}
+@keyframes popFragment{
+  0%{ transform:translate(0,0) scale(1); opacity:1; }
+  100%{ transform:translate(var(--fx), var(--fy)) scale(0); opacity:0; }
 }
 .bubble .icon{ opacity:0.55; filter:grayscale(0.15) brightness(1.15); line-height:1; }
 .bubble .icon-brand{
