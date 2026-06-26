@@ -222,12 +222,6 @@ function renderDashboard(data) {
   document.getElementById('kpiFP').textContent = fmtPct(kpis.taxaFp);
   document.getElementById('kpiPend').textContent = kpis.pendentes.toLocaleString('pt-BR');
 
-  const datas = data.map(a => a.dataAlerta).filter(d => d).sort((a, b) => a - b);
-  if (datas.length) {
-    const f = d => d.toLocaleDateString('pt-BR');
-    document.getElementById('periodMeta').textContent = `período: ${f(datas[0])} → ${f(datas[datas.length - 1])}`;
-  }
-
   // --- tabela por tipo de evento ---
   const tipoArr = groupByTipoEvento(data);
   document.getElementById('tblTipo').innerHTML = tipoArr.map(t => {
@@ -306,7 +300,7 @@ window.AppDashboard = { renderDashboard };
  * equivalente à aba "Dados" criada na planilha Excel — com busca
  * e paginação porque aqui são milhares de linhas.
  */
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 100;
 let _dadosState = { rows: [], filtered: [], page: 1 };
 
 function badge(value, kind) {
@@ -453,6 +447,7 @@ window.AppDadosTable = { renderDadosTable };
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+    document.querySelector('main').classList.add('wide');
   }
 
   function setStatus(msg, type) {
@@ -488,6 +483,8 @@ window.AppDadosTable = { renderDadosTable };
 
         currentData = parsed;
         window.__currentAlertData = parsed;
+        populateFiltroPlaca(parsed);
+        resetFiltrosInputs();
         window.AppDashboard.renderDashboard(parsed);
         window.AppDadosTable.renderDadosTable(parsed);
 
@@ -496,7 +493,7 @@ window.AppDadosTable = { renderDadosTable };
         switchTab('indicadores');
 
         filehint.textContent = file.name + ' · ' + parsed.length + ' alertas';
-        setStatus('✓ planilha carregada com sucesso', 'ok');
+        setStatus('');
       } catch (err) {
         console.error(err);
         setStatus('erro ao processar o arquivo: ' + err.message, 'err');
@@ -521,6 +518,9 @@ window.AppDadosTable = { renderDadosTable };
     { kind: 'emoji', value: '😴' },
     { kind: 'emoji', value: '🚨' },
     { kind: 'emoji', value: '📊' },
+    { kind: 'emoji', value: '🧐' },
+    { kind: 'emoji', value: '🥱' },
+    { kind: 'emoji', value: '📵' },
     { kind: 'brand', value: 'B' },
     { kind: 'emoji', value: '⚠️' },
   ];
@@ -634,12 +634,16 @@ window.AppDadosTable = { renderDadosTable };
   const root = document.documentElement;
 
   function applyTheme(theme) {
+    const moonIcon = document.getElementById('themeIconMoon');
+    const sunIcon = document.getElementById('themeIconSun');
     if (theme === 'light') {
       root.setAttribute('data-theme', 'light');
-      toggleBtn.textContent = '☀️';
+      if (moonIcon) moonIcon.style.display = 'none';
+      if (sunIcon) sunIcon.style.display = 'block';
     } else {
       root.removeAttribute('data-theme');
-      toggleBtn.textContent = '🌙';
+      if (moonIcon) moonIcon.style.display = 'block';
+      if (sunIcon) sunIcon.style.display = 'none';
     }
   }
 
@@ -653,9 +657,138 @@ window.AppDadosTable = { renderDadosTable };
     const next = isLight ? 'dark' : 'light';
     applyTheme(next);
     try { localStorage.setItem('painel-tema', next); } catch (e) { /* ignora se bloqueado */ }
-    // re-renderiza os gráficos pra pegarem as cores do novo tema
-    if (window.__currentAlertData && window.AppDashboard) {
+    // re-renderiza os gráficos pra pegarem as cores do novo tema (mantendo os filtros ativos)
+    if (window.AppFiltrosIndicadores) {
+      window.AppFiltrosIndicadores.applyFilters();
+    } else if (window.__currentAlertData && window.AppDashboard) {
       window.AppDashboard.renderDashboard(window.__currentAlertData);
     }
   });
 })();
+
+/**
+ * Filtros do painel de Indicadores: período (data início/fim) e placa.
+ * Filtra sobre os dados completos (window.__currentAlertData) e
+ * re-renderiza indicadores e a tabela de dados.
+ */
+(function () {
+  const dataIni = document.getElementById('filtroDataIni');
+  const dataFim = document.getElementById('filtroDataFim');
+  const selectPlaca = document.getElementById('filtroPlaca');
+  const btnLimpar = document.getElementById('filtroLimpar');
+  if (!dataIni || !dataFim || !selectPlaca || !btnLimpar) return;
+
+  function parseInputDate(value, endOfDay) {
+    if (!value) return null;
+    const [y, m, d] = value.split('-').map(Number);
+    return endOfDay ? new Date(y, m - 1, d, 23, 59, 59, 999) : new Date(y, m - 1, d, 0, 0, 0, 0);
+  }
+
+  function applyFilters() {
+    const all = window.__currentAlertData || [];
+    const ini = parseInputDate(dataIni.value, false);
+    const fim = parseInputDate(dataFim.value, true);
+    const placa = selectPlaca.value;
+
+    const filtered = all.filter(a => {
+      if (ini && (!a.dataAlerta || a.dataAlerta < ini)) return false;
+      if (fim && (!a.dataAlerta || a.dataAlerta > fim)) return false;
+      if (placa && a.placa !== placa) return false;
+      return true;
+    });
+
+    if (window.AppDashboard) window.AppDashboard.renderDashboard(filtered);
+    if (window.AppDadosTable) window.AppDadosTable.renderDadosTable(filtered);
+  }
+
+  dataIni.addEventListener('change', () => { const sel = document.getElementById('filtroPeriodoRapido'); if (sel) sel.value = ''; applyFilters(); });
+  dataFim.addEventListener('change', () => { const sel = document.getElementById('filtroPeriodoRapido'); if (sel) sel.value = ''; applyFilters(); });
+  selectPlaca.addEventListener('change', applyFilters);
+  btnLimpar.addEventListener('click', () => {
+    dataIni.value = '';
+    dataFim.value = '';
+    selectPlaca.value = '';
+    const sel = document.getElementById('filtroPeriodoRapido');
+    if (sel) sel.value = '';
+    applyFilters();
+  });
+
+  function toInputValue(d) {
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function computeRange(key) {
+    const now = new Date();
+    let ini, fim;
+    switch (key) {
+      case 'mes-atual':
+        ini = new Date(now.getFullYear(), now.getMonth(), 1);
+        fim = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        break;
+      case 'mes-anterior':
+        ini = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        fim = new Date(now.getFullYear(), now.getMonth(), 0);
+        break;
+      case 'trimestre-atual': {
+        const tStart = Math.floor(now.getMonth() / 3) * 3;
+        ini = new Date(now.getFullYear(), tStart, 1);
+        fim = new Date(now.getFullYear(), tStart + 3, 0);
+        break;
+      }
+      case 'semestre-atual': {
+        const sStart = now.getMonth() < 6 ? 0 : 6;
+        ini = new Date(now.getFullYear(), sStart, 1);
+        fim = new Date(now.getFullYear(), sStart + 6, 0);
+        break;
+      }
+      case 'ano-atual':
+        ini = new Date(now.getFullYear(), 0, 1);
+        fim = new Date(now.getFullYear(), 11, 31);
+        break;
+      case 'ano-anterior':
+        ini = new Date(now.getFullYear() - 1, 0, 1);
+        fim = new Date(now.getFullYear() - 1, 11, 31);
+        break;
+      default:
+        return null;
+    }
+    return { ini, fim };
+  }
+
+  const selectPeriodoRapido = document.getElementById('filtroPeriodoRapido');
+  if (selectPeriodoRapido) {
+    selectPeriodoRapido.addEventListener('change', () => {
+      const range = computeRange(selectPeriodoRapido.value);
+      if (!range) {
+        dataIni.value = '';
+        dataFim.value = '';
+      } else {
+        dataIni.value = toInputValue(range.ini);
+        dataFim.value = toInputValue(range.fim);
+      }
+      applyFilters();
+    });
+  }
+
+  window.AppFiltrosIndicadores = { applyFilters };
+})();
+
+/**
+ * Preenche o seletor de placas com as placas únicas da planilha carregada.
+ */
+function populateFiltroPlaca(data) {
+  const select = document.getElementById('filtroPlaca');
+  if (!select) return;
+  const placas = Array.from(new Set(data.map(a => a.placa).filter(Boolean))).sort();
+  select.innerHTML = '<option value="">Todas</option>' + placas.map(p => `<option value="${p}">${p}</option>`).join('');
+}
+
+function resetFiltrosInputs() {
+  const dataIni = document.getElementById('filtroDataIni');
+  const dataFim = document.getElementById('filtroDataFim');
+  const selectPlaca = document.getElementById('filtroPlaca');
+  if (dataIni) dataIni.value = '';
+  if (dataFim) dataFim.value = '';
+  if (selectPlaca) selectPlaca.value = '';
+}
