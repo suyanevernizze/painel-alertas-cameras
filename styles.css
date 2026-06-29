@@ -182,7 +182,7 @@ main{padding:28px 32px 60px; max-width:none; margin:0 auto;}
 .filters{ display:flex; gap:14px; flex-wrap:wrap; align-items:end; }
 .filter-field{ display:flex; flex-direction:column; gap:4px; }
 .filter-field label{ font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; font-family:'JetBrains Mono',monospace; }
-.filter-field input[type="date"], .filter-field select{
+.filter-field input[type="date"], .filter-field input[type="text"], .filter-field select{
   background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:8px;
   padding:7px 10px; font-size:12.5px; font-family:'JetBrains Mono',monospace; min-width:130px;
 }
