@@ -297,7 +297,15 @@ function drawCharts(tipoArr, placaArr, diaArr) {
         { label: 'Tratados', data: diaArr.map(d => d.tratados), borderColor: '#36C2B4', backgroundColor: 'rgba(54,194,180,0.12)', fill: true, tension: 0.3, pointRadius: 3 },
       ]
     },
-    options: { plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 10, font: { size: 11 } } } }, scales: { x: { grid: { display: false } }, y: { grid: { color: rootStyles.getPropertyValue('--line').trim() || 'rgba(255,255,255,0.05)' } } }, maintainAspectRatio: false }
+    options: {
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, position: 'top', labels: { boxWidth: 10, font: { size: 11 } } },
+        tooltip: { mode: 'index', intersect: false }
+      },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: rootStyles.getPropertyValue('--line').trim() || 'rgba(255,255,255,0.05)' } } },
+      maintainAspectRatio: false
+    }
   });
 }
 
