@@ -50,7 +50,8 @@
       <div class="filters">
         <div class="filter-field">
           <label for="filtroPlaca">Placa</label>
-          <select id="filtroPlaca"><option value="">Todas</option></select>
+          <input type="text" id="filtroPlaca" list="placaList" placeholder="todas" autocomplete="off">
+          <datalist id="placaList"></datalist>
         </div>
         <div class="filter-field">
           <label for="filtroDataIni">De</label>
@@ -64,10 +65,10 @@
           <label for="filtroPeriodoRapido">Período rápido</label>
           <select id="filtroPeriodoRapido">
             <option value="">Personalizado</option>
+            <option value="semana-atual">Semana atual</option>
+            <option value="semana-anterior">Semana anterior</option>
             <option value="mes-atual">Mês atual</option>
             <option value="mes-anterior">Mês anterior</option>
-            <option value="trimestre-atual">Trimestre atual</option>
-            <option value="semestre-atual">Semestre atual</option>
             <option value="ano-atual">Ano atual</option>
             <option value="ano-anterior">Ano anterior</option>
           </select>
