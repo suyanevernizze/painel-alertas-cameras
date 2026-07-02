@@ -32,6 +32,7 @@
 <nav class="tabs" id="tabs">
   <button class="tab-btn active" data-tab="indicadores">Indicadores</button>
   <button class="tab-btn" data-tab="dados">Dados</button>
+  <button class="tab-btn" data-tab="usuarios">Analistas</button>
 </nav>
 
 <main>
@@ -118,9 +119,9 @@
         <div class="chart-wrap small"><canvas id="chartDia"></canvas></div>
       </div>
       <div class="panel">
-        <h3><span class="dot"></span>Tratativas por usuário</h3>
+        <h3><span class="dot"></span>Tratativas por analista</h3>
         <table>
-          <thead><tr><th>Usuário</th><th class="num">Qtde</th><th class="num">Tempo méd.</th><th class="num">Falso +</th></tr></thead>
+          <thead><tr><th>Analista</th><th class="num">Qtde</th><th class="num">Tempo méd.</th><th class="num">Falso +</th></tr></thead>
           <tbody id="tblUsuario"></tbody>
         </table>
       </div>
@@ -138,7 +139,7 @@
             <tr>
               <th>ID</th><th>Placa</th><th>Motorista</th><th>Data/Hora</th><th>Risco</th>
               <th>Tipo de evento</th><th>Endereço</th><th>Status</th><th>Falso +</th>
-              <th>Usuário tratativa</th><th class="num">Tempo resp.</th>
+              <th>Analista tratativa</th><th class="num">Tempo resp.</th>
             </tr>
           </thead>
           <tbody id="tblDados"></tbody>
@@ -151,8 +152,88 @@
       </div>
     </div>
   </div>
-</main>
 
+  <!-- ABA: USUÁRIOS -->
+  <div class="view" id="view-usuarios">
+
+    <div class="toprow filters-row" style="margin-bottom:18px;">
+      <div class="filters">
+        <div class="filter-field">
+          <label for="uDataIni">De</label>
+          <input type="date" id="uDataIni">
+        </div>
+        <div class="filter-field">
+          <label for="uDataFim">Até</label>
+          <input type="date" id="uDataFim">
+        </div>
+        <div class="filter-field">
+          <label for="uPeriodoRapido">Período rápido</label>
+          <select id="uPeriodoRapido">
+            <option value="">Personalizado</option>
+            <option value="semana-atual">Semana atual</option>
+            <option value="semana-anterior">Semana anterior</option>
+            <option value="mes-atual">Mês atual</option>
+            <option value="mes-anterior">Mês anterior</option>
+            <option value="ano-atual">Ano atual</option>
+            <option value="ano-anterior">Ano anterior</option>
+          </select>
+        </div>
+        <button class="reset-btn" id="uLimpar">limpar filtros</button>
+      </div>
+    </div>
+
+    <div class="kpis" style="grid-template-columns:repeat(4,1fr);">
+      <div class="kpi c-total"><div class="label">Analistas ativos</div><div class="value" id="kpiUsuariosAtivos">—</div></div>
+      <div class="kpi c-ok"><div class="label">Procedentes</div><div class="value" id="kpiUsuarioProcedentes">—</div><div class="hint">alertas tratados não marcados como falso positivo</div></div>
+      <div class="kpi c-time"><div class="label">Menor tempo médio</div><div class="value" id="kpiUsuarioMaisRapido">—</div></div>
+      <div class="kpi c-fp"><div class="label">Menor tx. falso +</div><div class="value" id="kpiUsuarioMenorFP">—</div></div>
+    </div>
+
+    <div class="grid2" style="margin-bottom:18px;">
+      <div class="panel">
+        <h3><span class="dot"></span>Tratativas por analista</h3>
+        <div class="chart-wrap" style="height:280px;"><canvas id="chartUsuariosBar"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3><span class="dot" style="background:var(--red)"></span>Taxa de falso positivo por analista</h3>
+        <div class="chart-wrap" style="height:280px;"><canvas id="chartUsuariosFP"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:18px;">
+      <h3><span class="dot" style="background:var(--teal)"></span>Linha do tempo — tratativas por analista</h3>
+      <div class="chart-wrap" style="height:300px;"><canvas id="chartUsuariosLinha"></canvas></div>
+    </div>
+
+    <div class="panel" style="margin-bottom:18px;">
+      <h3><span class="dot" style="background:var(--amber)"></span>Detalhamento por analista</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Analista</th>
+            <th class="num">Tratativas</th>
+            <th class="num">% total</th>
+            <th class="num">Tempo médio</th>
+            <th class="num">Tempo mín.</th>
+            <th class="num">Tempo máx.</th>
+            <th class="num">Falso +</th>
+            <th class="num">Taxa falso +</th>
+            <th>Tipo mais frequente</th>
+          </tr>
+        </thead>
+        <tbody id="tblUsuariosDetalhe"></tbody>
+      </table>
+    </div>
+
+    <div class="panel" style="margin-bottom:18px;">
+      <h3><span class="dot" style="background:var(--blue)"></span>Tipos de alertas tratados por analista</h3>
+      <div style="overflow:auto;">
+        <table id="tblUsuariosTipos" style="min-width:600px;"></table>
+      </div>
+    </div>
+  </div>
+
+</main>
 
 <script src="app.js"></script>
 </body>
