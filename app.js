@@ -302,7 +302,22 @@ function drawCharts(tipoArr, placaArr, diaArr) {
   _charts.placas = new Chart(document.getElementById('chartPlacas'), {
     type: 'bar',
     data: { labels: placaArr.map(p => p.nome), datasets: [{ data: placaArr.map(p => p.count), backgroundColor: '#F2A33C', borderRadius: 4 }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: rootStyles.getPropertyValue('--line').trim() || 'rgba(255,255,255,0.05)' } } }, maintainAspectRatio: false }
+    options: {
+      plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: rootStyles.getPropertyValue('--line').trim() || 'rgba(255,255,255,0.05)' } } },
+      maintainAspectRatio: false,
+      animation: { onComplete: function() {
+        var chart = this, ctx = chart.ctx;
+        ctx.font = '10px JetBrains Mono, monospace';
+        ctx.fillStyle = rootStyles.getPropertyValue('--muted').trim() || '#7C8AA5';
+        ctx.textAlign = 'center';
+        chart.data.datasets.forEach(function(ds, di) {
+          chart.getDatasetMeta(di).data.forEach(function(bar, i) {
+            ctx.fillText(ds.data[i].toLocaleString('pt-BR'), bar.x, bar.y - 5);
+          });
+        });
+      }}
+    }
   });
 
   _charts.dia = new Chart(document.getElementById('chartDia'), {
@@ -898,9 +913,27 @@ function resetFiltrosInputs() {
       },
       options: {
         indexAxis: 'y',
-        plugins: { legend: { display: false } },
+        plugins: {
+          legend: { display: false },
+          datalabels: { display: false }
+        },
+        layout: { padding: { right: 48 } },
         scales: { x: { grid: { color: gridColor } }, y: { grid: { display: false } } },
-        maintainAspectRatio: false
+        maintainAspectRatio: false,
+        animation: { onComplete: function() {
+          var chart = this;
+          var ctx = chart.ctx;
+          ctx.font = '11px JetBrains Mono, monospace';
+          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim() || '#7C8AA5';
+          ctx.textAlign = 'left';
+          chart.data.datasets.forEach(function(ds, di) {
+            var meta = chart.getDatasetMeta(di);
+            meta.data.forEach(function(bar, i) {
+              var val = ds.data[i];
+              ctx.fillText(val.toLocaleString('pt-BR'), bar.x + 6, bar.y + 4);
+            });
+          });
+        }}
       }
     });
 
@@ -912,9 +945,23 @@ function resetFiltrosInputs() {
       },
       options: {
         indexAxis: 'y',
+        layout: { padding: { right: 52 } },
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx){ return ctx.parsed.x.toFixed(1) + '%'; } } } },
         scales: { x: { grid: { color: gridColor }, ticks: { callback: function(v){ return v + '%'; } } }, y: { grid: { display: false } } },
-        maintainAspectRatio: false
+        maintainAspectRatio: false,
+        animation: { onComplete: function() {
+          var chart = this;
+          var ctx = chart.ctx;
+          ctx.font = '11px JetBrains Mono, monospace';
+          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim() || '#7C8AA5';
+          ctx.textAlign = 'left';
+          chart.data.datasets.forEach(function(ds, di) {
+            var meta = chart.getDatasetMeta(di);
+            meta.data.forEach(function(bar, i) {
+              ctx.fillText(ds.data[i].toFixed(1) + '%', bar.x + 6, bar.y + 4);
+            });
+          });
+        }}
       }
     });
 
