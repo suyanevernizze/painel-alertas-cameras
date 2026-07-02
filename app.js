@@ -179,13 +179,30 @@ function groupByUsuario(data) {
   const map = {};
   data.forEach(a => {
     if (!a.usuario) return;
-    if (!map[a.usuario]) map[a.usuario] = { count: 0, fp: 0, tempos: [] };
+    if (!map[a.usuario]) map[a.usuario] = { count: 0, fp: 0, tempos: [], tipoMap: {}, diaMap: {} };
     map[a.usuario].count++;
     if (a.falsoPositivo) map[a.usuario].fp++;
     if (a.tempoResposta !== null) map[a.usuario].tempos.push(a.tempoResposta);
+    const t = a.tipoEvento || 'Outros';
+    map[a.usuario].tipoMap[t] = (map[a.usuario].tipoMap[t] || 0) + 1;
+    if (a.dataPrimeiraTratativa) {
+      const dia = new Date(a.dataPrimeiraTratativa).toLocaleDateString('pt-BR');
+      map[a.usuario].diaMap[dia] = (map[a.usuario].diaMap[dia] || 0) + 1;
+    }
   });
   return Object.entries(map)
-    .map(([nome, v]) => ({ nome, count: v.count, fp: v.fp, tempoMedio: average(v.tempos) }))
+    .map(([nome, v]) => ({
+      nome,
+      count: v.count,
+      fp: v.fp,
+      taxaFp: v.count ? v.fp / v.count : 0,
+      tempoMedio: average(v.tempos),
+      tempoMin: v.tempos.length ? Math.min(...v.tempos) : null,
+      tempoMax: v.tempos.length ? Math.max(...v.tempos) : null,
+      tipoMaisFrequente: Object.entries(v.tipoMap).sort((a, b) => b[1] - a[1])[0]?.[0] || '—',
+      tipoMap: v.tipoMap,
+      diaMap: v.diaMap,
+    }))
     .sort((a, b) => b.count - a.count);
 }
 
@@ -503,6 +520,7 @@ window.AppDadosTable = { renderDadosTable };
         resetFiltrosInputs();
         window.AppDashboard.renderDashboard(parsed);
         window.AppDadosTable.renderDadosTable(parsed);
+        if (window.AppUsuarios) window.AppUsuarios.renderUsuarios(parsed);
 
         dropzone.style.display = 'none';
         tabs.classList.add('show');
@@ -676,6 +694,7 @@ window.AppDadosTable = { renderDadosTable };
     // re-renderiza os gráficos pra pegarem as cores do novo tema (mantendo os filtros ativos)
     if (window.AppFiltrosIndicadores) {
       window.AppFiltrosIndicadores.applyFilters();
+      if (window.AppUsuarios && window.__currentAlertData) window.AppUsuarios.renderUsuarios(window.__currentAlertData);
     } else if (window.__currentAlertData && window.AppDashboard) {
       window.AppDashboard.renderDashboard(window.__currentAlertData);
     }
@@ -715,6 +734,7 @@ window.AppDadosTable = { renderDadosTable };
 
     if (window.AppDashboard) window.AppDashboard.renderDashboard(filtered);
     if (window.AppDadosTable) window.AppDadosTable.renderDadosTable(filtered);
+    if (window.AppUsuarios) window.AppUsuarios.renderUsuarios(filtered);
   }
 
   dataIni.addEventListener('change', () => { const sel = document.getElementById('filtroPeriodoRapido'); if (sel) sel.value = ''; applyFilters(); });
@@ -813,3 +833,203 @@ function resetFiltrosInputs() {
   if (dataFim) dataFim.value = '';
   if (selectPlaca) selectPlaca.value = '';
 }
+
+/**
+ * AppUsuarios — aba Usuários com KPIs, linha do tempo, tipos por usuário e tabela detalhada.
+ */
+(function () {
+  let _chartsU = {};
+  const PALETTE = ['#5B8DEF','#36C2B4','#F2A33C','#E5484D','#9B7BFF','#3BC9DB','#F783AC','#94D82D','#FFA94D','#20C997'];
+
+  function renderUsuarios(data) {
+    const { groupByUsuario } = window.AppStats;
+    const { fmtMin, fmtPct } = window.AppFormat;
+    const userArr = groupByUsuario(data);
+    const totalTratativas = userArr.reduce(function(s, u) { return s + u.count; }, 0);
+
+    // --- KPIs ---
+    document.getElementById('kpiUsuariosAtivos').textContent = userArr.length;
+    var totalProcedentes = data.filter(function(a){ return a.tratado && !a.falsoPositivo; }).length;
+    document.getElementById('kpiUsuarioProcedentes').textContent = totalProcedentes.toLocaleString('pt-BR');
+    var maisRapido = userArr.filter(function(u) { return u.tempoMedio !== null; }).sort(function(a,b){ return a.tempoMedio - b.tempoMedio; })[0];
+    document.getElementById('kpiUsuarioMaisRapido').textContent = maisRapido ? fmtMin(maisRapido.tempoMedio) : '—';
+    var menorFP = userArr.filter(function(u){ return u.count >= 5; }).sort(function(a,b){ return a.taxaFp - b.taxaFp; })[0];
+    document.getElementById('kpiUsuarioMenorFP').textContent = menorFP ? fmtPct(menorFP.taxaFp) : '—';
+
+    // --- Tabela detalhada ---
+    document.getElementById('tblUsuariosDetalhe').innerHTML = userArr.map(function(u) {
+      return '<tr>' +
+        '<td>' + u.nome + '</td>' +
+        '<td class="num">' + u.count + '</td>' +
+        '<td class="num"><div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:' + (u.count/Math.max(userArr[0].count,1)*100) + '%;background:var(--blue)"></div></div>' + fmtPct(totalTratativas ? u.count/totalTratativas : 0) + '</div></td>' +
+        '<td class="num">' + fmtMin(u.tempoMedio) + '</td>' +
+        '<td class="num">' + fmtMin(u.tempoMin) + '</td>' +
+        '<td class="num">' + fmtMin(u.tempoMax) + '</td>' +
+        '<td class="num">' + u.fp + '</td>' +
+        '<td class="num">' + fmtPct(u.taxaFp) + '</td>' +
+        '<td>' + u.tipoMaisFrequente + '</td>' +
+      '</tr>';
+    }).join('');
+
+    // --- Tabela tipos por usuário ---
+    var todostipos = Array.from(new Set(userArr.flatMap(function(u){ return Object.keys(u.tipoMap); }))).sort();
+    var tblEl = document.getElementById('tblUsuariosTipos');
+    var header = '<thead><tr><th>Usuário</th>' + todostipos.map(function(t){ return '<th class="num" style="font-size:10px;">' + t.replace('Aviso de ','').replace('Falta de uso do ','') + '</th>'; }).join('') + '<th class="num">Total</th></tr></thead>';
+    var body = '<tbody>' + userArr.map(function(u) {
+      return '<tr><td>' + u.nome.split(' ')[0] + '</td>' + todostipos.map(function(t) {
+        var cnt = u.tipoMap[t] || 0;
+        var pct = u.count ? (cnt/u.count*100).toFixed(0) : 0;
+        return '<td class="num" style="font-size:11px;">' + (cnt ? cnt + '<br><span style="color:var(--muted);font-size:9.5px;">' + pct + '%</span>' : '—') + '</td>';
+      }).join('') + '<td class="num"><strong>' + u.count + '</strong></td></tr>';
+    }).join('') + '</tbody>';
+    tblEl.innerHTML = header + body;
+
+    // --- Gráficos ---
+    Object.values(_chartsU).forEach(function(c){ c.destroy(); });
+    var rootStyles = getComputedStyle(document.documentElement);
+    var gridColor = rootStyles.getPropertyValue('--line').trim();
+    var top10 = userArr.slice(0, 10);
+
+    _chartsU.bar = new Chart(document.getElementById('chartUsuariosBar'), {
+      type: 'bar',
+      data: {
+        labels: top10.map(function(u){ return u.nome.split(' ')[0]; }),
+        datasets: [{ label: 'Tratativas', data: top10.map(function(u){ return u.count; }), backgroundColor: '#5B8DEF', borderRadius: 5 }]
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { color: gridColor } }, y: { grid: { display: false } } },
+        maintainAspectRatio: false
+      }
+    });
+
+    _chartsU.fp = new Chart(document.getElementById('chartUsuariosFP'), {
+      type: 'bar',
+      data: {
+        labels: top10.map(function(u){ return u.nome.split(' ')[0]; }),
+        datasets: [{ label: 'Taxa FP %', data: top10.map(function(u){ return +(u.taxaFp * 100).toFixed(1); }), backgroundColor: '#E5484D', borderRadius: 5 }]
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx){ return ctx.parsed.x.toFixed(1) + '%'; } } } },
+        scales: { x: { grid: { color: gridColor }, ticks: { callback: function(v){ return v + '%'; } } }, y: { grid: { display: false } } },
+        maintainAspectRatio: false
+      }
+    });
+
+    // --- Linha do tempo: tratativas por usuário por dia ---
+    var todasDias = Array.from(new Set(data.filter(function(a){ return a.dataPrimeiraTratativa; }).map(function(a){
+      return new Date(a.dataPrimeiraTratativa).toLocaleDateString('pt-BR');
+    }))).sort(function(a, b){
+      var pa = a.split('/'), pb = b.split('/');
+      return new Date(pa[2],pa[1]-1,pa[0]) - new Date(pb[2],pb[1]-1,pb[0]);
+    });
+
+    var datasets = top10.map(function(u, i) {
+      return {
+        label: u.nome.split(' ')[0],
+        data: todasDias.map(function(d){ return u.diaMap[d] || 0; }),
+        borderColor: PALETTE[i % PALETTE.length],
+        backgroundColor: 'transparent',
+        tension: 0.3,
+        pointRadius: 2,
+        borderWidth: 2,
+      };
+    });
+
+    _chartsU.linha = new Chart(document.getElementById('chartUsuariosLinha'), {
+      type: 'line',
+      data: { labels: todasDias, datasets: datasets },
+      options: {
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'top', labels: { boxWidth: 10, font: { size: 10 } } } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { grid: { color: gridColor }, beginAtZero: true }
+        },
+        maintainAspectRatio: false
+      }
+    });
+  }
+
+  window.AppUsuarios = { renderUsuarios };
+})();
+
+/**
+ * Filtro de período da aba Usuários — independente do filtro da aba Indicadores.
+ */
+(function () {
+  function toInputValue(d) {
+    var y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+    return y + '-' + m + '-' + day;
+  }
+  function startOfWeek(d) {
+    var r = new Date(d);
+    var diff = (r.getDay() + 6) % 7;
+    r.setDate(r.getDate() - diff); r.setHours(0,0,0,0);
+    return r;
+  }
+  function computeRangeU(key) {
+    var now = new Date(), ini, fim;
+    switch(key) {
+      case 'semana-atual':
+        ini = startOfWeek(now); fim = new Date(ini); fim.setDate(fim.getDate()+6); break;
+      case 'semana-anterior':
+        fim = new Date(startOfWeek(now)); fim.setDate(fim.getDate()-1);
+        ini = new Date(fim); ini.setDate(ini.getDate()-6); break;
+      case 'mes-atual':
+        ini = new Date(now.getFullYear(), now.getMonth(), 1);
+        fim = new Date(now.getFullYear(), now.getMonth()+1, 0); break;
+      case 'mes-anterior':
+        ini = new Date(now.getFullYear(), now.getMonth()-1, 1);
+        fim = new Date(now.getFullYear(), now.getMonth(), 0); break;
+      case 'ano-atual':
+        ini = new Date(now.getFullYear(), 0, 1); fim = new Date(now.getFullYear(), 11, 31); break;
+      case 'ano-anterior':
+        ini = new Date(now.getFullYear()-1, 0, 1); fim = new Date(now.getFullYear()-1, 11, 31); break;
+      default: return null;
+    }
+    return { ini, fim };
+  }
+  function parseD(value, endOfDay) {
+    if (!value) return null;
+    var parts = value.split('-');
+    return endOfDay
+      ? new Date(+parts[0], +parts[1]-1, +parts[2], 23, 59, 59, 999)
+      : new Date(+parts[0], +parts[1]-1, +parts[2], 0, 0, 0, 0);
+  }
+
+  function applyUsuarioFilter() {
+    var all = window.__currentAlertData || [];
+    var ini = parseD((document.getElementById('uDataIni')||{}).value, false);
+    var fim = parseD((document.getElementById('uDataFim')||{}).value, true);
+    var filtered = all.filter(function(a) {
+      if (ini && (!a.dataPrimeiraTratativa || new Date(a.dataPrimeiraTratativa) < ini)) return false;
+      if (fim && (!a.dataPrimeiraTratativa || new Date(a.dataPrimeiraTratativa) > fim)) return false;
+      return true;
+    });
+    if (window.AppUsuarios) window.AppUsuarios.renderUsuarios(filtered);
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var uIni = document.getElementById('uDataIni');
+    var uFim = document.getElementById('uDataFim');
+    var uRapido = document.getElementById('uPeriodoRapido');
+    var uLimpar = document.getElementById('uLimpar');
+    if (!uIni) return;
+
+    uIni.addEventListener('change', function(){ if(uRapido) uRapido.value=''; applyUsuarioFilter(); });
+    uFim.addEventListener('change', function(){ if(uRapido) uRapido.value=''; applyUsuarioFilter(); });
+    uRapido.addEventListener('change', function() {
+      var range = computeRangeU(uRapido.value);
+      if (!range) { uIni.value=''; uFim.value=''; } 
+      else { uIni.value = toInputValue(range.ini); uFim.value = toInputValue(range.fim); }
+      applyUsuarioFilter();
+    });
+    uLimpar.addEventListener('click', function() {
+      uIni.value=''; uFim.value=''; uRapido.value='';
+      applyUsuarioFilter();
+    });
+  });
+})();
