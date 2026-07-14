@@ -293,10 +293,45 @@ function drawCharts(tipoArr, placaArr, diaArr) {
   Chart.defaults.font.family = "'JetBrains Mono', monospace";
   Chart.defaults.color = mutedColor;
 
+  const tipoDataLabels = {
+    id: 'tipoDataLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      const dataset = chart.data.datasets[0];
+      const total = dataset.data.reduce((a, b) => a + b, 0);
+      if (!total) return;
+      const meta = chart.getDatasetMeta(0);
+      ctx.save();
+      ctx.font = "bold 11px 'JetBrains Mono', monospace";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      meta.data.forEach((arc, i) => {
+        const value = dataset.data[i];
+        const pct = value / total;
+        if (pct < 0.02) return; // evita poluir fatias muito pequenas
+        const { x, y, innerRadius, outerRadius, startAngle, endAngle } = arc.getProps(
+          ['x', 'y', 'innerRadius', 'outerRadius', 'startAngle', 'endAngle'], true
+        );
+        const midAngle = (startAngle + endAngle) / 2;
+        const radius = (innerRadius + outerRadius) / 2;
+        const lx = x + Math.cos(midAngle) * radius;
+        const ly = y + Math.sin(midAngle) * radius;
+        const label = (pct * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%';
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+        ctx.strokeText(label, lx, ly);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(label, lx, ly);
+      });
+      ctx.restore();
+    }
+  };
+
   _charts.tipo = new Chart(document.getElementById('chartTipo'), {
     type: 'doughnut',
     data: { labels: tipoArr.map(t => t.nome), datasets: [{ data: tipoArr.map(t => t.count), backgroundColor: palette, borderColor: panelColor, borderWidth: 2 }] },
-    options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }, maintainAspectRatio: false }
+    options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }, maintainAspectRatio: false },
+    plugins: [tipoDataLabels]
   });
 
   _charts.placas = new Chart(document.getElementById('chartPlacas'), {
@@ -320,6 +355,30 @@ function drawCharts(tipoArr, placaArr, diaArr) {
     }
   });
 
+  const diaDataLabels = {
+    id: 'diaDataLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      ctx.save();
+      ctx.font = "10px 'JetBrains Mono', monospace";
+      ctx.textAlign = 'center';
+      chart.data.datasets.forEach((ds, di) => {
+        const meta = chart.getDatasetMeta(di);
+        if (meta.hidden) return;
+        // Alertas (índice 0) fica com o rótulo acima do ponto; Tratados (índice 1) fica abaixo,
+        // para não sobrepor quando as duas linhas se cruzam.
+        const dy = di === 0 ? -8 : 14;
+        ctx.fillStyle = ds.borderColor;
+        meta.data.forEach((point, i) => {
+          const val = ds.data[i];
+          if (val === null || val === undefined) return;
+          ctx.fillText(val.toLocaleString('pt-BR'), point.x, point.y + dy);
+        });
+      });
+      ctx.restore();
+    }
+  };
+
   _charts.dia = new Chart(document.getElementById('chartDia'), {
     type: 'line',
     data: {
@@ -331,13 +390,15 @@ function drawCharts(tipoArr, placaArr, diaArr) {
     },
     options: {
       interaction: { mode: 'index', intersect: false },
+      layout: { padding: { top: 16, bottom: 10 } },
       plugins: {
         legend: { display: true, position: 'top', labels: { boxWidth: 10, font: { size: 11 } } },
         tooltip: { mode: 'index', intersect: false }
       },
       scales: { x: { grid: { display: false } }, y: { grid: { color: rootStyles.getPropertyValue('--line').trim() || 'rgba(255,255,255,0.05)' } } },
       maintainAspectRatio: false
-    }
+    },
+    plugins: [diaDataLabels]
   });
 }
 
