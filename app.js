@@ -593,6 +593,7 @@ window.AppDadosTable = { renderDadosTable };
         currentData = parsed;
         window.__currentAlertData = parsed;
         populateFiltroPlaca(parsed);
+        populateDateBounds(parsed);
         resetFiltrosInputs();
         window.AppDashboard.renderDashboard(parsed);
         window.AppDadosTable.renderDadosTable(parsed);
@@ -858,6 +859,19 @@ window.AppDadosTable = { renderDadosTable };
         ini = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         fim = new Date(now.getFullYear(), now.getMonth(), 0);
         break;
+      case 'trimestre-atual': {
+        const q = Math.floor(now.getMonth() / 3);
+        ini = new Date(now.getFullYear(), q * 3, 1);
+        fim = new Date(now.getFullYear(), q * 3 + 3, 0);
+        break;
+      }
+      case 'trimestre-anterior': {
+        let q2 = Math.floor(now.getMonth() / 3) - 1, yy = now.getFullYear();
+        if (q2 < 0) { q2 = 3; yy -= 1; }
+        ini = new Date(yy, q2 * 3, 1);
+        fim = new Date(yy, q2 * 3 + 3, 0);
+        break;
+      }
       case 'ano-atual':
         ini = new Date(now.getFullYear(), 0, 1);
         fim = new Date(now.getFullYear(), 11, 31);
@@ -894,6 +908,373 @@ window.AppDadosTable = { renderDadosTable };
  * Preenche as sugestões (datalist) do campo digitável de placa
  * com as placas únicas da planilha carregada.
  */
+/**
+ * AppRangePicker — seletor de INTERVALO com dois meses lado a lado, atalhos
+ * laterais e botões Cancelar/Aplicar. Substitui os dois campos De/Até por um
+ * único campo, mas por baixo continua alimentando os inputs originais
+ * (mesmos ids, agora hidden) e disparando "change", então toda a lógica de
+ * filtro, o dropdown "Período rápido" e o "limpar filtros" seguem valendo.
+ *
+ * Navegação travada no intervalo de dados: o painel esquerdo vai de min até
+ * (max-1) e o direito é sempre esquerdo+1, cobrindo todos os meses com dados
+ * sem exibir meses vazios. Atalhos que caem fora dos dados são recortados; se
+ * ficarem totalmente fora, aparecem desabilitados.
+ */
+(function () {
+  // ---------- lógica pura (idêntica à testada em rangelogic.js) ----------
+  function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function fromYmd(s){ if(!s) return null; var p=String(s).split('-'); if(p.length!==3) return null; var d=new Date(+p[0],+p[1]-1,+p[2]); d.setHours(0,0,0,0); return isNaN(d)?null:d; }
+  function displayBr(s){ var d=fromYmd(s); if(!d) return ''; return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear(); }
+  function monthIndex(y,m){ return y*12+m; }
+  function idxToYM(idx){ return { year:Math.floor(idx/12), month:((idx%12)+12)%12 }; }
+  function startOfWeek(d){ var r=new Date(d); var diff=(r.getDay()+6)%7; r.setDate(r.getDate()-diff); r.setHours(0,0,0,0); return r; }
+
+  function buildMonth(year,month,minStr,maxStr,startStr,endStr,hoverStr){
+    var startDow=new Date(year,month,1).getDay();
+    var dim=new Date(year,month+1,0).getDate();
+    var min=fromYmd(minStr),max=fromYmd(maxStr),start=fromYmd(startStr),end=fromYmd(endStr),hover=fromYmd(hoverStr);
+    var rA=start, rB=end||(start&&hover?hover:null);
+    if(rA&&rB&&rB<rA){ var t=rA; rA=rB; rB=t; }
+    var cells=[];
+    for(var i=0;i<42;i++){
+      var dn=i-startDow+1;
+      if(dn<1||dn>dim){ cells.push(null); continue; }
+      var d=new Date(year,month,dn); d.setHours(0,0,0,0);
+      cells.push({
+        day:dn, ymd:ymd(d),
+        disabled:(min&&d<min)||(max&&d>max),
+        isStart:!!(start&&d.getTime()===start.getTime()),
+        isEnd:!!(end&&d.getTime()===end.getTime()),
+        inRange:!!(rA&&rB&&d>=rA&&d<=rB)
+      });
+    }
+    return cells;
+  }
+  function leftRange(minStr,maxStr){
+    var min=fromYmd(minStr),max=fromYmd(maxStr); if(!min||!max) return null;
+    var lo=monthIndex(min.getFullYear(),min.getMonth()), hi=monthIndex(max.getFullYear(),max.getMonth());
+    return { lo:lo, hi: hi>lo?hi-1:hi };
+  }
+  function navState(ly,lm,minStr,maxStr){
+    var lr=leftRange(minStr,maxStr), cur=monthIndex(ly,lm);
+    if(!lr) return { canPrev:true, canNext:true };
+    return { canPrev:cur>lr.lo, canNext:cur<lr.hi };
+  }
+  function initialLeft(startStr,endStr,minStr,maxStr){
+    var base=fromYmd(startStr)||fromYmd(endStr)||fromYmd(maxStr)||fromYmd(minStr)||new Date();
+    var idx=monthIndex(base.getFullYear(),base.getMonth()), lr=leftRange(minStr,maxStr);
+    if(lr){ if(idx<lr.lo) idx=lr.lo; if(idx>lr.hi) idx=lr.hi; }
+    return idxToYM(idx);
+  }
+  function clampRange(iniStr,fimStr,minStr,maxStr){
+    var ini=fromYmd(iniStr),fim=fromYmd(fimStr),min=fromYmd(minStr),max=fromYmd(maxStr);
+    if(!ini||!fim) return null;
+    if(fim<ini){ var t=ini; ini=fim; fim=t; }
+    if(min&&ini<min) ini=min; if(max&&fim>max) fim=max;
+    if(ini>fim) return null;
+    return { ini:ymd(ini), fim:ymd(fim) };
+  }
+  function quickRange(key,now){
+    now=now||new Date(); var y=now.getFullYear(),mo=now.getMonth(),ini,fim;
+    switch(key){
+      case 'hoje': ini=new Date(y,mo,now.getDate()); fim=new Date(ini); break;
+      case 'ontem': ini=new Date(y,mo,now.getDate()-1); fim=new Date(ini); break;
+      case 'semana-atual': ini=startOfWeek(now); fim=new Date(ini); fim.setDate(fim.getDate()+6); break;
+      case 'semana-anterior': fim=new Date(startOfWeek(now)); fim.setDate(fim.getDate()-1); ini=new Date(fim); ini.setDate(ini.getDate()-6); break;
+      case 'mes-atual': ini=new Date(y,mo,1); fim=new Date(y,mo+1,0); break;
+      case 'mes-anterior': ini=new Date(y,mo-1,1); fim=new Date(y,mo,0); break;
+      case 'trimestre-atual': { var q=Math.floor(mo/3); ini=new Date(y,q*3,1); fim=new Date(y,q*3+3,0); break; }
+      case 'trimestre-anterior': { var q2=Math.floor(mo/3)-1,yy=y; if(q2<0){q2=3;yy=y-1;} ini=new Date(yy,q2*3,1); fim=new Date(yy,q2*3+3,0); break; }
+      case 'ano-atual': ini=new Date(y,0,1); fim=new Date(y,11,31); break;
+      case 'ano-anterior': ini=new Date(y-1,0,1); fim=new Date(y-1,11,31); break;
+      default: return null;
+    }
+    return { ini:ymd(ini), fim:ymd(fim) };
+  }
+
+  // ---------- constantes de UI ----------
+  var MES_ABBR=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  var DOW=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  var SHORTCUTS=[
+    { key:'', label:'Limpar' },
+    { key:'hoje', label:'Hoje' },
+    { key:'ontem', label:'Ontem' },
+    { key:'semana-atual', label:'Esta semana' },
+    { key:'semana-anterior', label:'Semana passada' },
+    { key:'mes-atual', label:'Este mês' },
+    { key:'mes-anterior', label:'Mês passado' },
+    { key:'trimestre-atual', label:'Este trimestre' },
+    { key:'trimestre-anterior', label:'Trimestre passado' },
+    { key:'ano-atual', label:'Este ano' },
+    { key:'ano-anterior', label:'Ano passado' }
+  ];
+
+  var _bounds={};      // iniId -> {min,max}
+  var _openClose=null; // fecha o popup aberto atualmente
+
+  function setBounds(iniId,minStr,maxStr){ _bounds[iniId]={min:minStr,max:maxStr}; }
+
+  function attach(iniInput, fimInput){
+    if(!iniInput||!fimInput||iniInput.__rpAttached) return;
+    iniInput.__rpAttached=true;
+
+    iniInput.type='hidden'; fimInput.type='hidden';
+    var iniField=iniInput.parentNode;           // .filter-field do "De"
+    var fimField=fimInput.parentNode;           // .filter-field do "Até"
+    var lbl=iniField.querySelector('label'); if(lbl) lbl.textContent='Período';
+    if(fimField && fimField!==iniField) fimField.style.display='none';
+
+    var wrap=document.createElement('div'); wrap.className='rp-wrap';
+    var field=document.createElement('button'); field.type='button'; field.className='rp-field';
+    field.innerHTML='<span class="rp-text"></span><span class="rp-ico">📅</span>';
+    var popup=document.createElement('div'); popup.className='rp-popup'; popup.style.display='none';
+    iniField.appendChild(wrap); wrap.appendChild(field); wrap.appendChild(popup);
+
+    // sincroniza o texto do campo quando .value muda por código (dropdown/limpar)
+    function hookValue(input){
+      var proto=Object.getPrototypeOf(input);
+      var desc=Object.getOwnPropertyDescriptor(proto,'value');
+      Object.defineProperty(input,'value',{
+        configurable:true,
+        get:function(){ return desc.get.call(this); },
+        set:function(v){ desc.set.call(this,v); syncField(); }
+      });
+      input.__rpRaw=desc; // acesso ao value cru sem re-disparar sync
+    }
+    function raw(input){ return input.__rpRaw.get.call(input); }
+    hookValue(iniInput); hookValue(fimInput);
+
+    var view={ ly:0, lm:0 };
+    var pStart=null, pEnd=null, hover=null;
+
+    function bounds(){ return _bounds[iniInput.id]||{}; }
+
+    function syncField(){
+      var t=field.querySelector('.rp-text');
+      var a=raw(iniInput), b=raw(fimInput);
+      if(a&&b){ t.textContent=displayBr(a)+' — '+displayBr(b); field.classList.add('has-val'); }
+      else if(a){ t.textContent=displayBr(a); field.classList.add('has-val'); }
+      else { t.textContent='selecione o período'; field.classList.remove('has-val'); }
+    }
+
+    function yearOptions(rLo,rHi,curYear){
+      var y0=idxToYM(rLo).year, y1=idxToYM(rHi).year, html='';
+      for(var y=y0;y<=y1;y++) html+='<option value="'+y+'"'+(y===curYear?' selected':'')+'>'+y+'</option>';
+      return html;
+    }
+    function mesOptions(rLo,rHi,year,curMonth){
+      var html='';
+      for(var m=0;m<12;m++){
+        var idx=monthIndex(year,m), dis=(idx<rLo||idx>rHi);
+        html+='<option value="'+m+'"'+(m===curMonth?' selected':'')+(dis?' disabled':'')+'>'+MES_ABBR[m]+'</option>';
+      }
+      return html;
+    }
+
+    function gridHtml(year,month){
+      var b=bounds();
+      var cells=buildMonth(year,month,b.min,b.max,pStart,pEnd,hover);
+      return cells.map(function(c){
+        if(!c) return '<span class="rp-day empty"></span>';
+        var cls='rp-day';
+        if(c.disabled) cls+=' disabled';
+        if(c.inRange) cls+=' in-range';
+        if(c.isStart) cls+=' start';
+        if(c.isEnd) cls+=' end';
+        return '<button type="button" class="'+cls+'" data-ymd="'+c.ymd+'"'+(c.disabled?' disabled':'')+'>'+c.day+'</button>';
+      }).join('');
+    }
+
+    function footHtml(){
+      var a=pStart, bb=pEnd;
+      if(a&&bb&&fromYmd(bb)<fromYmd(a)){ var t=a; a=bb; bb=t; }
+      var txt = a&&bb ? (displayBr(a)+' — '+displayBr(bb)) : (a ? displayBr(a)+' — …' : 'nenhum período selecionado');
+      return '<span class="rp-range-text">'+txt+'</span>'+
+        '<div class="rp-actions"><button type="button" class="rp-cancel">Cancelar</button>'+
+        '<button type="button" class="rp-apply">Aplicar</button></div>';
+    }
+
+    function renderAll(){
+      var b=bounds();
+      var lr=leftRange(b.min,b.max)||{lo:monthIndex(view.ly,view.lm),hi:monthIndex(view.ly,view.lm)};
+      var leftIdx=monthIndex(view.ly,view.lm);
+      var rightIdx=leftIdx+1;
+      var L=idxToYM(leftIdx), R=idxToYM(rightIdx);
+      var ns=navState(view.ly,view.lm,b.min,b.max);
+
+      var side='<div class="rp-side">'+SHORTCUTS.map(function(s){
+        var dis=false;
+        if(s.key){ var qr=quickRange(s.key,new Date()); dis=!clampRange(qr.ini,qr.fim,b.min,b.max); }
+        return '<button type="button" class="rp-shortcut'+(s.key===''?' rp-clear':'')+'" data-key="'+s.key+'"'+(dis?' disabled':'')+'>'+s.label+'</button>';
+      }).join('')+'</div>';
+
+      var calL='<div class="rp-cal">'+
+        '<div class="rp-cal-head">'+
+          '<button type="button" class="rp-nav rp-prev"'+(ns.canPrev?'':' disabled')+'>‹</button>'+
+          '<span class="rp-selects"><select class="rp-mes" data-side="L">'+mesOptions(lr.lo,lr.hi,L.year,L.month)+'</select>'+
+          '<select class="rp-ano" data-side="L">'+yearOptions(lr.lo,lr.hi,L.year)+'</select></span>'+
+          '<span class="rp-nav-spacer"></span>'+
+        '</div>'+
+        '<div class="rp-dow">'+DOW.map(function(d){return '<span>'+d+'</span>';}).join('')+'</div>'+
+        '<div class="rp-grid" data-side="L">'+gridHtml(L.year,L.month)+'</div>'+
+      '</div>';
+
+      var calR='<div class="rp-cal">'+
+        '<div class="rp-cal-head">'+
+          '<span class="rp-nav-spacer"></span>'+
+          '<span class="rp-selects"><select class="rp-mes" data-side="R">'+mesOptions(lr.lo+1,lr.hi+1,R.year,R.month)+'</select>'+
+          '<select class="rp-ano" data-side="R">'+yearOptions(lr.lo+1,lr.hi+1,R.year)+'</select></span>'+
+          '<button type="button" class="rp-nav rp-next"'+(ns.canNext?'':' disabled')+'>›</button>'+
+        '</div>'+
+        '<div class="rp-dow">'+DOW.map(function(d){return '<span>'+d+'</span>';}).join('')+'</div>'+
+        '<div class="rp-grid" data-side="R">'+gridHtml(R.year,R.month)+'</div>'+
+      '</div>';
+
+      popup.innerHTML=side+'<div class="rp-main"><div class="rp-cals">'+calL+calR+'</div><div class="rp-foot">'+footHtml()+'</div></div>';
+      wire();
+    }
+
+    function refreshGridsAndFoot(){
+      var leftIdx=monthIndex(view.ly,view.lm);
+      var L=idxToYM(leftIdx), R=idxToYM(leftIdx+1);
+      var gl=popup.querySelector('.rp-grid[data-side="L"]');
+      var gr=popup.querySelector('.rp-grid[data-side="R"]');
+      if(gl) gl.innerHTML=gridHtml(L.year,L.month);
+      if(gr) gr.innerHTML=gridHtml(R.year,R.month);
+      var foot=popup.querySelector('.rp-foot'); if(foot) foot.innerHTML=footHtml();
+      wireDays(); wireFoot();
+    }
+
+    function onDay(y){
+      if(!pStart || (pStart&&pEnd)){ pStart=y; pEnd=null; hover=null; }
+      else { pEnd=y; hover=null; if(fromYmd(pEnd)<fromYmd(pStart)){ var t=pStart; pStart=pEnd; pEnd=t; } }
+      refreshGridsAndFoot();
+    }
+    function onHover(y){ if(pStart&&!pEnd){ hover=y; refreshGridsAndFoot(); } }
+
+    function applyShortcut(key){
+      var b=bounds();
+      if(key===''){ pStart=null; pEnd=null; hover=null; renderAll(); return; }
+      var qr=quickRange(key,new Date());
+      var cr=clampRange(qr.ini,qr.fim,b.min,b.max);
+      if(!cr) return;
+      pStart=cr.ini; pEnd=cr.fim; hover=null;
+      var v=initialLeft(pStart,pEnd,b.min,b.max); view.ly=v.year; view.lm=v.month;
+      renderAll();
+    }
+
+    function stepPar(delta){
+      var idx=monthIndex(view.ly,view.lm)+delta;
+      var ym=idxToYM(idx); view.ly=ym.year; view.lm=ym.month; renderAll();
+    }
+    function setLeftFromSelect(side,year,month){
+      var idx=monthIndex(year,month); if(side==='R') idx-=1;
+      var b=bounds(), lr=leftRange(b.min,b.max);
+      if(lr){ if(idx<lr.lo) idx=lr.lo; if(idx>lr.hi) idx=lr.hi; }
+      var ym=idxToYM(idx); view.ly=ym.year; view.lm=ym.month; renderAll();
+    }
+
+    function apply(){
+      var a=pStart, bb=pEnd;
+      if(a&&bb&&fromYmd(bb)<fromYmd(a)){ var t=a; a=bb; bb=t; }
+      if(a&&bb){ iniInput.value=a; fimInput.value=bb; }
+      else if(a){ iniInput.value=a; fimInput.value=a; }
+      else { iniInput.value=''; fimInput.value=''; }
+      fimInput.dispatchEvent(new Event('change',{bubbles:true}));
+      close();
+    }
+
+    function wireDays(){
+      popup.querySelectorAll('.rp-day:not(.empty):not(.disabled)').forEach(function(btn){
+        btn.onclick=function(){ onDay(btn.getAttribute('data-ymd')); };
+        btn.onmouseenter=function(){ onHover(btn.getAttribute('data-ymd')); };
+      });
+    }
+    function wireFoot(){
+      var c=popup.querySelector('.rp-cancel'); if(c) c.onclick=function(){ close(); };
+      var ap=popup.querySelector('.rp-apply'); if(ap) ap.onclick=function(){ apply(); };
+    }
+    function wire(){
+      var prev=popup.querySelector('.rp-prev'); if(prev) prev.onclick=function(){ if(!prev.disabled) stepPar(-1); };
+      var next=popup.querySelector('.rp-next'); if(next) next.onclick=function(){ if(!next.disabled) stepPar(1); };
+      popup.querySelectorAll('.rp-shortcut').forEach(function(b){ b.onclick=function(){ if(!b.disabled) applyShortcut(b.getAttribute('data-key')); }; });
+      popup.querySelectorAll('.rp-mes').forEach(function(sel){
+        sel.onchange=function(){
+          var side=sel.getAttribute('data-side');
+          var ano=+popup.querySelector('.rp-ano[data-side="'+side+'"]').value;
+          setLeftFromSelect(side, ano, +sel.value);
+        };
+      });
+      popup.querySelectorAll('.rp-ano').forEach(function(sel){
+        sel.onchange=function(){
+          var side=sel.getAttribute('data-side');
+          var mes=+popup.querySelector('.rp-mes[data-side="'+side+'"]').value;
+          setLeftFromSelect(side, +sel.value, mes);
+        };
+      });
+      wireDays(); wireFoot();
+    }
+
+    function open(){
+      if(_openClose && _openClose!==close) _openClose();
+      pStart=raw(iniInput)||null; pEnd=raw(fimInput)||null; hover=null;
+      var b=bounds();
+      var v=initialLeft(pStart,pEnd,b.min,b.max); view.ly=v.year; view.lm=v.month;
+      renderAll();
+      popup.style.display='flex';
+      _openClose=close;
+    }
+    function close(){ popup.style.display='none'; if(_openClose===close) _openClose=null; }
+
+    field.addEventListener('click',function(e){ e.stopPropagation(); if(popup.style.display==='none') open(); else close(); });
+    popup.addEventListener('click',function(e){ e.stopPropagation(); });
+
+    syncField();
+  }
+
+  document.addEventListener('click',function(){ if(_openClose) _openClose(); });
+
+  window.AppRangePicker={ attach:attach, setBounds:setBounds };
+})();
+
+/**
+ * Liga o range picker nos pares De/Até (Indicadores e Analistas).
+ */
+(function () {
+  function initRangePickers() {
+    if (!window.AppRangePicker) return;
+    [['filtroDataIni','filtroDataFim'], ['uDataIni','uDataFim']].forEach(function (par) {
+      var a = document.getElementById(par[0]), b = document.getElementById(par[1]);
+      if (a && b) window.AppRangePicker.attach(a, b);
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initRangePickers);
+  else initRangePickers();
+})();
+
+/**
+ * Limita a navegação do range picker às datas que realmente existem na
+ * planilha carregada (o painel esquerdo vai até max-1 e o direito é +1).
+ */
+function populateDateBounds(data) {
+  function bounds(list) {
+    let min = null, max = null;
+    list.forEach(d => { if (!d) return; const t = new Date(d); if (isNaN(t)) return; if (!min || t < min) min = t; if (!max || t > max) max = t; });
+    return { min, max };
+  }
+  function toInputValue(d) {
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  function apply(iniId, range) {
+    if (!range.min || !range.max || !window.AppRangePicker) return;
+    window.AppRangePicker.setBounds(iniId, toInputValue(range.min), toInputValue(range.max));
+  }
+  apply('filtroDataIni', bounds(data.map(a => a.dataAlerta)));      // Indicadores: data do alerta
+  apply('uDataIni', bounds(data.map(a => a.dataPrimeiraTratativa))); // Analistas: 1ª tratativa
+}
+
+
 function populateFiltroPlaca(data) {
   const list = document.getElementById('placaList');
   if (!list) return;
@@ -1092,6 +1473,8 @@ function resetFiltrosInputs() {
       case 'mes-anterior':
         ini = new Date(now.getFullYear(), now.getMonth()-1, 1);
         fim = new Date(now.getFullYear(), now.getMonth(), 0); break;
+      case 'trimestre-atual': { var q = Math.floor(now.getMonth()/3); ini = new Date(now.getFullYear(), q*3, 1); fim = new Date(now.getFullYear(), q*3+3, 0); break; }
+      case 'trimestre-anterior': { var q2 = Math.floor(now.getMonth()/3)-1, yy = now.getFullYear(); if(q2<0){q2=3;yy-=1;} ini = new Date(yy, q2*3, 1); fim = new Date(yy, q2*3+3, 0); break; }
       case 'ano-atual':
         ini = new Date(now.getFullYear(), 0, 1); fim = new Date(now.getFullYear(), 11, 31); break;
       case 'ano-anterior':
