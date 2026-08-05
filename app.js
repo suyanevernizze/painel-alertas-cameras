@@ -833,8 +833,9 @@ window.AppDadosTable = { renderDadosTable };
  * com as placas únicas da planilha carregada.
  */
 /**
- * AppRangePicker — seletor de INTERVALO com dois meses lado a lado, atalhos
- * laterais e botões Cancelar/Aplicar. Substitui os dois campos De/Até por um
+ * AppRangePicker — seletor de INTERVALO com dois meses lado a lado e atalhos
+ * laterais. A seleção (2 cliques) ou um atalho aplica e fecha na hora, sem
+ * botões. Clicar fora fecha sem aplicar. Substitui os dois campos De/Até por um
  * único campo, mas por baixo continua alimentando os inputs originais
  * (mesmos ids, agora hidden) e disparando "change", então toda a lógica de
  * filtro e o "limpar filtros" seguem valendo.
@@ -1009,15 +1010,6 @@ window.AppDadosTable = { renderDadosTable };
       }).join('');
     }
 
-    function footHtml(){
-      var a=pStart, bb=pEnd;
-      if(a&&bb&&fromYmd(bb)<fromYmd(a)){ var t=a; a=bb; bb=t; }
-      var txt = a&&bb ? (displayBr(a)+' — '+displayBr(bb)) : (a ? displayBr(a)+' — …' : 'nenhum período selecionado');
-      return '<span class="rp-range-text">'+txt+'</span>'+
-        '<div class="rp-actions"><button type="button" class="rp-cancel">Cancelar</button>'+
-        '<button type="button" class="rp-apply">Aplicar</button></div>';
-    }
-
     function renderAll(){
       var b=bounds();
       var lr=leftRange(b.min,b.max)||{lo:monthIndex(view.ly,view.lm),hi:monthIndex(view.ly,view.lm)};
@@ -1054,37 +1046,33 @@ window.AppDadosTable = { renderDadosTable };
         '<div class="rp-grid" data-side="R">'+gridHtml(R.year,R.month)+'</div>'+
       '</div>';
 
-      popup.innerHTML=side+'<div class="rp-main"><div class="rp-cals">'+calL+calR+'</div><div class="rp-foot">'+footHtml()+'</div></div>';
+      popup.innerHTML=side+'<div class="rp-main"><div class="rp-cals">'+calL+calR+'</div></div>';
       wire();
     }
 
-    function refreshGridsAndFoot(){
+    function refreshGrids(){
       var leftIdx=monthIndex(view.ly,view.lm);
       var L=idxToYM(leftIdx), R=idxToYM(leftIdx+1);
       var gl=popup.querySelector('.rp-grid[data-side="L"]');
       var gr=popup.querySelector('.rp-grid[data-side="R"]');
       if(gl) gl.innerHTML=gridHtml(L.year,L.month);
       if(gr) gr.innerHTML=gridHtml(R.year,R.month);
-      var foot=popup.querySelector('.rp-foot'); if(foot) foot.innerHTML=footHtml();
-      wireDays(); wireFoot();
+      wireDays();
     }
 
     function onDay(y){
-      if(!pStart || (pStart&&pEnd)){ pStart=y; pEnd=null; hover=null; }
-      else { pEnd=y; hover=null; if(fromYmd(pEnd)<fromYmd(pStart)){ var t=pStart; pStart=pEnd; pEnd=t; } }
-      refreshGridsAndFoot();
+      if(!pStart || (pStart&&pEnd)){ pStart=y; pEnd=null; hover=null; refreshGrids(); }
+      else { pEnd=y; hover=null; if(fromYmd(pEnd)<fromYmd(pStart)){ var t=pStart; pStart=pEnd; pEnd=t; } apply(); }
     }
-    function onHover(y){ if(pStart&&!pEnd){ hover=y; refreshGridsAndFoot(); } }
+    function onHover(y){ if(pStart&&!pEnd){ hover=y; refreshGrids(); } }
 
     function applyShortcut(key){
       var b=bounds();
-      if(key===''){ pStart=null; pEnd=null; hover=null; renderAll(); return; }
+      if(key===''){ pStart=null; pEnd=null; hover=null; apply(); return; }
       var qr=quickRange(key,new Date());
       var cr=clampRange(qr.ini,qr.fim,b.min,b.max);
       if(!cr) return;
-      pStart=cr.ini; pEnd=cr.fim; hover=null;
-      var v=initialLeft(pStart,pEnd,b.min,b.max); view.ly=v.year; view.lm=v.month;
-      renderAll();
+      pStart=cr.ini; pEnd=cr.fim; hover=null; apply();
     }
 
     function stepPar(delta){
@@ -1114,10 +1102,6 @@ window.AppDadosTable = { renderDadosTable };
         btn.onmouseenter=function(){ onHover(btn.getAttribute('data-ymd')); };
       });
     }
-    function wireFoot(){
-      var c=popup.querySelector('.rp-cancel'); if(c) c.onclick=function(){ close(); };
-      var ap=popup.querySelector('.rp-apply'); if(ap) ap.onclick=function(){ apply(); };
-    }
     function wire(){
       var prev=popup.querySelector('.rp-prev'); if(prev) prev.onclick=function(){ if(!prev.disabled) stepPar(-1); };
       var next=popup.querySelector('.rp-next'); if(next) next.onclick=function(){ if(!next.disabled) stepPar(1); };
@@ -1136,7 +1120,7 @@ window.AppDadosTable = { renderDadosTable };
           setLeftFromSelect(side, +sel.value, mes);
         };
       });
-      wireDays(); wireFoot();
+      wireDays();
     }
 
     function open(){
