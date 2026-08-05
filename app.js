@@ -814,92 +814,16 @@ window.AppDadosTable = { renderDadosTable };
     if (window.AppUsuarios) window.AppUsuarios.renderUsuarios(filtered);
   }
 
-  dataIni.addEventListener('change', () => { const sel = document.getElementById('filtroPeriodoRapido'); if (sel) sel.value = ''; applyFilters(); });
-  dataFim.addEventListener('change', () => { const sel = document.getElementById('filtroPeriodoRapido'); if (sel) sel.value = ''; applyFilters(); });
+  dataIni.addEventListener('change', applyFilters);
+  dataFim.addEventListener('change', applyFilters);
   selectPlaca.addEventListener('input', applyFilters);
   btnLimpar.addEventListener('click', () => {
     dataIni.value = '';
     dataFim.value = '';
     selectPlaca.value = '';
-    const sel = document.getElementById('filtroPeriodoRapido');
-    if (sel) sel.value = '';
     applyFilters();
   });
 
-  function toInputValue(d) {
-    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }
-
-  function startOfWeek(d) {
-    const r = new Date(d);
-    const diff = (r.getDay() + 6) % 7; // segunda-feira como início da semana
-    r.setDate(r.getDate() - diff);
-    r.setHours(0, 0, 0, 0);
-    return r;
-  }
-
-  function computeRange(key) {
-    const now = new Date();
-    let ini, fim;
-    switch (key) {
-      case 'semana-atual':
-        ini = startOfWeek(now);
-        fim = new Date(ini); fim.setDate(fim.getDate() + 6);
-        break;
-      case 'semana-anterior':
-        fim = new Date(startOfWeek(now)); fim.setDate(fim.getDate() - 1);
-        ini = new Date(fim); ini.setDate(ini.getDate() - 6);
-        break;
-      case 'mes-atual':
-        ini = new Date(now.getFullYear(), now.getMonth(), 1);
-        fim = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        break;
-      case 'mes-anterior':
-        ini = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        fim = new Date(now.getFullYear(), now.getMonth(), 0);
-        break;
-      case 'trimestre-atual': {
-        const q = Math.floor(now.getMonth() / 3);
-        ini = new Date(now.getFullYear(), q * 3, 1);
-        fim = new Date(now.getFullYear(), q * 3 + 3, 0);
-        break;
-      }
-      case 'trimestre-anterior': {
-        let q2 = Math.floor(now.getMonth() / 3) - 1, yy = now.getFullYear();
-        if (q2 < 0) { q2 = 3; yy -= 1; }
-        ini = new Date(yy, q2 * 3, 1);
-        fim = new Date(yy, q2 * 3 + 3, 0);
-        break;
-      }
-      case 'ano-atual':
-        ini = new Date(now.getFullYear(), 0, 1);
-        fim = new Date(now.getFullYear(), 11, 31);
-        break;
-      case 'ano-anterior':
-        ini = new Date(now.getFullYear() - 1, 0, 1);
-        fim = new Date(now.getFullYear() - 1, 11, 31);
-        break;
-      default:
-        return null;
-    }
-    return { ini, fim };
-  }
-
-  const selectPeriodoRapido = document.getElementById('filtroPeriodoRapido');
-  if (selectPeriodoRapido) {
-    selectPeriodoRapido.addEventListener('change', () => {
-      const range = computeRange(selectPeriodoRapido.value);
-      if (!range) {
-        dataIni.value = '';
-        dataFim.value = '';
-      } else {
-        dataIni.value = toInputValue(range.ini);
-        dataFim.value = toInputValue(range.fim);
-      }
-      applyFilters();
-    });
-  }
 
   window.AppFiltrosIndicadores = { applyFilters };
 })();
@@ -913,7 +837,7 @@ window.AppDadosTable = { renderDadosTable };
  * laterais e botões Cancelar/Aplicar. Substitui os dois campos De/Até por um
  * único campo, mas por baixo continua alimentando os inputs originais
  * (mesmos ids, agora hidden) e disparando "change", então toda a lógica de
- * filtro, o dropdown "Período rápido" e o "limpar filtros" seguem valendo.
+ * filtro e o "limpar filtros" seguem valendo.
  *
  * Navegação travada no intervalo de dados: o painel esquerdo vai de min até
  * (max-1) e o direito é sempre esquerdo+1, cobrindo todos os meses com dados
@@ -1449,40 +1373,6 @@ function resetFiltrosInputs() {
  * Filtro de período da aba Usuários — independente do filtro da aba Indicadores.
  */
 (function () {
-  function toInputValue(d) {
-    var y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
-    return y + '-' + m + '-' + day;
-  }
-  function startOfWeek(d) {
-    var r = new Date(d);
-    var diff = (r.getDay() + 6) % 7;
-    r.setDate(r.getDate() - diff); r.setHours(0,0,0,0);
-    return r;
-  }
-  function computeRangeU(key) {
-    var now = new Date(), ini, fim;
-    switch(key) {
-      case 'semana-atual':
-        ini = startOfWeek(now); fim = new Date(ini); fim.setDate(fim.getDate()+6); break;
-      case 'semana-anterior':
-        fim = new Date(startOfWeek(now)); fim.setDate(fim.getDate()-1);
-        ini = new Date(fim); ini.setDate(ini.getDate()-6); break;
-      case 'mes-atual':
-        ini = new Date(now.getFullYear(), now.getMonth(), 1);
-        fim = new Date(now.getFullYear(), now.getMonth()+1, 0); break;
-      case 'mes-anterior':
-        ini = new Date(now.getFullYear(), now.getMonth()-1, 1);
-        fim = new Date(now.getFullYear(), now.getMonth(), 0); break;
-      case 'trimestre-atual': { var q = Math.floor(now.getMonth()/3); ini = new Date(now.getFullYear(), q*3, 1); fim = new Date(now.getFullYear(), q*3+3, 0); break; }
-      case 'trimestre-anterior': { var q2 = Math.floor(now.getMonth()/3)-1, yy = now.getFullYear(); if(q2<0){q2=3;yy-=1;} ini = new Date(yy, q2*3, 1); fim = new Date(yy, q2*3+3, 0); break; }
-      case 'ano-atual':
-        ini = new Date(now.getFullYear(), 0, 1); fim = new Date(now.getFullYear(), 11, 31); break;
-      case 'ano-anterior':
-        ini = new Date(now.getFullYear()-1, 0, 1); fim = new Date(now.getFullYear()-1, 11, 31); break;
-      default: return null;
-    }
-    return { ini, fim };
-  }
   function parseD(value, endOfDay) {
     if (!value) return null;
     var parts = value.split('-');
@@ -1506,20 +1396,13 @@ function resetFiltrosInputs() {
   document.addEventListener('DOMContentLoaded', function() {
     var uIni = document.getElementById('uDataIni');
     var uFim = document.getElementById('uDataFim');
-    var uRapido = document.getElementById('uPeriodoRapido');
     var uLimpar = document.getElementById('uLimpar');
     if (!uIni) return;
 
-    uIni.addEventListener('change', function(){ if(uRapido) uRapido.value=''; applyUsuarioFilter(); });
-    uFim.addEventListener('change', function(){ if(uRapido) uRapido.value=''; applyUsuarioFilter(); });
-    uRapido.addEventListener('change', function() {
-      var range = computeRangeU(uRapido.value);
-      if (!range) { uIni.value=''; uFim.value=''; } 
-      else { uIni.value = toInputValue(range.ini); uFim.value = toInputValue(range.fim); }
-      applyUsuarioFilter();
-    });
+    uIni.addEventListener('change', applyUsuarioFilter);
+    uFim.addEventListener('change', applyUsuarioFilter);
     uLimpar.addEventListener('click', function() {
-      uIni.value=''; uFim.value=''; uRapido.value='';
+      uIni.value=''; uFim.value='';
       applyUsuarioFilter();
     });
   });
