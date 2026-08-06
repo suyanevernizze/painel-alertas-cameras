@@ -136,7 +136,7 @@
         <table>
           <thead>
             <tr>
-              <th>ID</th><th>Placa</th><th>Motorista</th><th>Data/Hora</th><th>Risco</th>
+              <th>ID</th><th class="col-placa">Placa</th><th>Data/Hora</th><th>Risco</th>
               <th>Tipo de evento</th><th>Endereço</th><th>Status</th><th>Falso +</th>
               <th>Analista tratativa</th><th class="num">Tempo resp.</th>
             </tr>
@@ -182,7 +182,7 @@
         <div class="chart-wrap" style="height:280px;"><canvas id="chartUsuariosBar"></canvas></div>
       </div>
       <div class="panel">
-        <h3><span class="dot" style="background:var(--red)"></span>Taxa de falso positivo por analista</h3>
+        <h3><span class="dot" style="background:var(--red)"></span>Falso + vs. verdadeiros por analista</h3>
         <div class="chart-wrap" style="height:280px;"><canvas id="chartUsuariosFP"></canvas></div>
       </div>
     </div>
@@ -229,7 +229,7 @@
       <div class="modal-body">
         <div class="table-scroll">
           <table>
-            <thead><tr><th>ID</th><th>Placa</th><th>Motorista</th><th>Data/Hora</th><th>Risco</th><th>Tipo de evento</th><th>Endereço</th><th>Analista</th><th class="num">Tempo resp.</th></tr></thead>
+            <thead><tr><th>ID</th><th class="col-placa">Placa</th><th>Data/Hora</th><th>Risco</th><th>Tipo de evento</th><th>Endereço</th><th>Analista</th><th class="num">Tempo resp.</th></tr></thead>
             <tbody id="procedentesModalBody"></tbody>
           </table>
         </div>

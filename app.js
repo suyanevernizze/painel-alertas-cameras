@@ -457,10 +457,10 @@ function renderProcedentesModal() {
     ? `(exibindo ${PROC_MODAL_LIMIT.toLocaleString('pt-BR')} de ${rows.length.toLocaleString('pt-BR')} — refine o período)`
     : `(${rows.length.toLocaleString('pt-BR')})`;
   document.getElementById('procedentesModalBody').innerHTML = shown.map(a =>
-    `<tr><td>${a.id}</td><td>${a.placa||'—'}</td><td>${a.motorista||'—'}</td><td>${fmt.fmtDateTime(a.dataAlerta)}</td>` +
+    `<tr><td>${a.id}</td><td class="col-placa">${a.placa||'—'}</td><td>${fmt.fmtDateTime(a.dataAlerta)}</td>` +
     `<td class="risk-${a.risco}">${a.risco||'—'}</td><td>${a.tipoEvento||'—'}</td><td>${a.endereco||'—'}</td>` +
     `<td>${a.usuario||'—'}</td><td class="num">${fmt.fmtMin(a.tempoResposta)}</td></tr>`
-  ).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;">nenhum alerta procedente no período</td></tr>';
+  ).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px;">nenhum alerta procedente no período</td></tr>';
 }
 function openProcedentesModal() { renderProcedentesModal(); const m = document.getElementById('procedentesModal'); if (m) m.hidden = false; }
 function closeProcedentesModal() { const m = document.getElementById('procedentesModal'); if (m) m.hidden = true; }
@@ -536,8 +536,7 @@ function renderPage() {
   tbody.innerHTML = pageRows.map(a => `
     <tr>
       <td>${a.id}</td>
-      <td>${a.placa || '—'}</td>
-      <td>${a.motorista || '—'}</td>
+      <td class="col-placa">${a.placa || '—'}</td>
       <td>${fmtDateTime(a.dataAlerta)}</td>
       <td class="risk-${a.risco}">${a.risco || '—'}</td>
       <td>${a.tipoEvento || '—'}</td>
@@ -1367,12 +1366,15 @@ function resetFiltrosInputs() {
       type: 'bar',
       data: {
         labels: top10.map(function(u){ return u.nome.split(' ')[0]; }),
-        datasets: [{ label: 'Taxa FP %', data: top10.map(function(u){ return +(u.taxaFp * 100).toFixed(1); }), backgroundColor: '#E5484D', borderRadius: 5 }]
+        datasets: [
+          { label: 'Falso +', data: top10.map(function(u){ return +(u.taxaFp * 100).toFixed(1); }), backgroundColor: '#E5484D', borderRadius: 5 },
+          { label: 'Verdadeiros', data: top10.map(function(u){ return +(u.taxaProc * 100).toFixed(1); }), backgroundColor: '#36C2B4', borderRadius: 5 }
+        ]
       },
       options: {
         indexAxis: 'y',
         layout: { padding: { right: 52 } },
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx){ return ctx.parsed.x.toFixed(1) + '%'; } } } },
+        plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 10, font: { size: 11 } } }, tooltip: { callbacks: { label: function(ctx){ return ctx.dataset.label + ': ' + ctx.parsed.x.toFixed(1) + '%'; } } } },
         scales: { x: { grid: { color: gridColor }, ticks: { callback: function(v){ return v + '%'; } } }, y: { grid: { display: false } } },
         maintainAspectRatio: false,
         animation: { onComplete: function() {
