@@ -303,6 +303,40 @@ function renderDashboard(data) {
   drawCharts(tipoArr, placaArr, diaArr, groupByTipoEvento(procedentesRows));
 }
 
+const tipoDataLabels = {
+  id: 'tipoDataLabels',
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    const dataset = chart.data.datasets[0];
+    const total = dataset.data.reduce((a, b) => a + b, 0);
+    if (!total) return;
+    const meta = chart.getDatasetMeta(0);
+    ctx.save();
+    ctx.font = "bold 11px 'JetBrains Mono', monospace";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    meta.data.forEach((arc, i) => {
+      const value = dataset.data[i];
+      const pct = value / total;
+      if (pct < 0.02) return; // evita poluir fatias muito pequenas
+      const { x, y, innerRadius, outerRadius, startAngle, endAngle } = arc.getProps(
+        ['x', 'y', 'innerRadius', 'outerRadius', 'startAngle', 'endAngle'], true
+      );
+      const midAngle = (startAngle + endAngle) / 2;
+      const radius = (innerRadius + outerRadius) / 2;
+      const lx = x + Math.cos(midAngle) * radius;
+      const ly = y + Math.sin(midAngle) * radius;
+      const label = (pct * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.strokeText(label, lx, ly);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(label, lx, ly);
+    });
+    ctx.restore();
+  }
+};
+
 function drawCharts(tipoArr, placaArr, diaArr, tipoVerdArr) {
   Object.values(_charts).forEach(c => c.destroy());
   const palette = ['#5B8DEF', '#36C2B4', '#F2A33C', '#E5484D', '#9B7BFF', '#3BC9DB', '#F783AC', '#94D82D', '#FFA94D'];
@@ -311,40 +345,6 @@ function drawCharts(tipoArr, placaArr, diaArr, tipoVerdArr) {
   const panelColor = rootStyles.getPropertyValue('--panel').trim() || '#111A2E';
   Chart.defaults.font.family = "'JetBrains Mono', monospace";
   Chart.defaults.color = mutedColor;
-
-  const tipoDataLabels = {
-    id: 'tipoDataLabels',
-    afterDatasetsDraw(chart) {
-      const { ctx } = chart;
-      const dataset = chart.data.datasets[0];
-      const total = dataset.data.reduce((a, b) => a + b, 0);
-      if (!total) return;
-      const meta = chart.getDatasetMeta(0);
-      ctx.save();
-      ctx.font = "bold 11px 'JetBrains Mono', monospace";
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      meta.data.forEach((arc, i) => {
-        const value = dataset.data[i];
-        const pct = value / total;
-        if (pct < 0.02) return; // evita poluir fatias muito pequenas
-        const { x, y, innerRadius, outerRadius, startAngle, endAngle } = arc.getProps(
-          ['x', 'y', 'innerRadius', 'outerRadius', 'startAngle', 'endAngle'], true
-        );
-        const midAngle = (startAngle + endAngle) / 2;
-        const radius = (innerRadius + outerRadius) / 2;
-        const lx = x + Math.cos(midAngle) * radius;
-        const ly = y + Math.sin(midAngle) * radius;
-        const label = (pct * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%';
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-        ctx.strokeText(label, lx, ly);
-        ctx.fillStyle = '#fff';
-        ctx.fillText(label, lx, ly);
-      });
-      ctx.restore();
-    }
-  };
 
   // cor fixa por tipo (mesma nas duas pizzas e na legenda compartilhada)
   const colorByTipo = {};
