@@ -1050,21 +1050,26 @@ window.AppDadosTable = { renderDadosTable };
       wire();
     }
 
-    function refreshGrids(){
-      var leftIdx=monthIndex(view.ly,view.lm);
-      var L=idxToYM(leftIdx), R=idxToYM(leftIdx+1);
-      var gl=popup.querySelector('.rp-grid[data-side="L"]');
-      var gr=popup.querySelector('.rp-grid[data-side="R"]');
-      if(gl) gl.innerHTML=gridHtml(L.year,L.month);
-      if(gr) gr.innerHTML=gridHtml(R.year,R.month);
-      wireDays();
+    // Repinta só as classes dos dias existentes (NÃO recria os elementos),
+    // pra o clique da data-fim nunca ser perdido por recriação no hover.
+    function paintRange(){
+      var A=fromYmd(pStart), B=fromYmd(pEnd || (pStart && hover ? hover : null));
+      if(A&&B&&B<A){ var t=A; A=B; B=t; }
+      popup.querySelectorAll('.rp-day[data-ymd]').forEach(function(btn){
+        var d=fromYmd(btn.getAttribute('data-ymd'));
+        btn.classList.remove('in-range','start','end');
+        if(!d) return;
+        if(A&&B&&d>=A&&d<=B) btn.classList.add('in-range');
+        if(A&&d.getTime()===A.getTime()) btn.classList.add('start');
+        if(B&&d.getTime()===B.getTime()) btn.classList.add('end');
+      });
     }
 
     function onDay(y){
-      if(!pStart || (pStart&&pEnd)){ pStart=y; pEnd=null; hover=null; refreshGrids(); }
+      if(!pStart || (pStart&&pEnd)){ pStart=y; pEnd=null; hover=null; paintRange(); }
       else { pEnd=y; hover=null; if(fromYmd(pEnd)<fromYmd(pStart)){ var t=pStart; pStart=pEnd; pEnd=t; } apply(); }
     }
-    function onHover(y){ if(pStart&&!pEnd){ hover=y; refreshGrids(); } }
+    function onHover(y){ if(pStart&&!pEnd){ hover=y; paintRange(); } }
 
     function applyShortcut(key){
       var b=bounds();
