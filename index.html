@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel de Alertas de Câmeras — Frota</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" onerror="window.__libError='xlsx'"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" onerror="window.__libError='chart'"></script>
+</head>
+<body>
+<div class="bubble-bg" id="bubbleBg"></div>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark">B</div>
+    <div>
+      <h1>Painel de Alertas de Câmeras — Frota</h1>
+      <div class="sub">monitoramento de alertas em tempo real</div>
+    </div>
+  </div>
+  <div style="display:flex; align-items:center; gap:16px;">
+    <div class="filehint" id="filehint">nenhum arquivo carregado</div>
+    <button class="reset-btn" id="resetBtn" style="margin-bottom:18px;">↺ carregar outra planilha</button>
+    <button id="themeToggle" class="theme-toggle" title="Alternar modo claro/escuro" aria-label="Alternar modo claro/escuro">
+      <svg id="themeIconMoon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg id="themeIconSun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v3M12 18.5v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+    </button>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="tab-btn active" data-tab="indicadores">Indicadores</button>
+  <button class="tab-btn" data-tab="dados">Dados</button>
+  <button class="tab-btn" data-tab="usuarios">Analistas</button>
+</nav>
+
+<main>
+  <div id="dropzone">
+    <div class="pulse-ring"></div>
+    <div class="icon">⇪</div>
+    <h2>Arraste a planilha de tratativas aqui</h2>
+    <p>ou clique para selecionar um arquivo .xlsx — os dados não saem do seu navegador</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+  </div>
+  <div id="status"></div>
+
+  <!-- ABA: INDICADORES -->
+  <div class="view" id="view-indicadores">
+    <div class="toprow filters-row">
+      <div class="filters">
+        <div class="filter-field">
+          <label for="filtroPlaca">Placa</label>
+          <input type="text" id="filtroPlaca" placeholder="Todas" autocomplete="off">
+        </div>
+        <div class="filter-field">
+          <label for="filtroDataIni">De</label>
+          <input type="date" id="filtroDataIni">
+        </div>
+        <div class="filter-field">
+          <label for="filtroDataFim">Até</label>
+          <input type="date" id="filtroDataFim">
+        </div>
+        <button class="reset-btn" id="filtroLimpar">limpar filtros</button>
+      </div>
+    </div>
+
+    <div class="kpis kpis-6">
+      <div class="kpi c-total"><div class="label">Total de alertas</div><div class="value" id="kpiTotal">—</div></div>
+      <div class="kpi c-ok"><div class="label">% tratados</div><div class="value" id="kpiTratados">—</div><div class="hint">qualquer interação no histórico conta como tratativa</div></div>
+      <div class="kpi c-time"><div class="label">Tempo médio resp.</div><div class="value" id="kpiTempo">—</div></div>
+      <div class="kpi c-fp"><div class="label">Taxa falso positivo</div><div class="value" id="kpiFP">—</div></div>
+      <div class="kpi c-pend"><div class="label">Pendentes</div><div class="value" id="kpiPend">—</div></div>
+      <div class="kpi c-proc clickable" id="cardProcedentes" role="button" tabindex="0" title="Clique para ver os alertas procedentes"><div class="label">Procedentes</div><div class="value" id="kpiProcedentes">—</div><div class="hint">tratados e não falso positivo · clique para ver</div></div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <h3><span class="dot"></span>Alertas por tipo de evento</h3>
+        <table>
+          <thead><tr><th>Tipo</th><th class="num">Qtde</th><th class="num">%</th><th class="num">Tempo méd.</th><th class="num">Falso +</th><th class="num">Positivos</th></tr></thead>
+          <tbody id="tblTipo"></tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h3><span class="dot" style="background:var(--blue)"></span>Distribuição por tipo</h3>
+        <div class="dist-duo">
+          <div class="dist-item">
+            <div class="dist-cap">todos os alertas</div>
+            <div class="chart-wrap"><canvas id="chartTipo"></canvas></div>
+          </div>
+          <div class="dist-item">
+            <div class="dist-cap">somente verdadeiros</div>
+            <div class="chart-wrap"><canvas id="chartTipoVerd"></canvas></div>
+          </div>
+        </div>
+        <div class="dist-legend" id="distLegend"></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <h3><span class="dot" style="background:var(--amber)"></span>Top 10 veículos</h3>
+        <div class="chart-wrap small"><canvas id="chartPlacas"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3><span class="dot" style="background:var(--red)"></span>Por nível de risco</h3>
+        <table>
+          <thead><tr><th>Risco</th><th class="num">Qtde</th><th class="num">%</th><th class="num">Falso +</th><th class="num">Positivos</th></tr></thead>
+          <tbody id="tblRisco"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <h3><span class="dot" style="background:var(--teal)"></span>Alertas por dia</h3>
+        <div class="chart-wrap small"><canvas id="chartDia"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3><span class="dot"></span>Tratativas por analista</h3>
+        <table>
+          <thead><tr><th>Analista</th><th class="num">Qtde</th><th class="num">Tempo méd.</th><th class="num">Falso +</th><th class="num">Positivos</th></tr></thead>
+          <tbody id="tblUsuario"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ABA: DADOS (base, igual à aba "Dados" do Excel) -->
+  <div class="view" id="view-dados">
+    <div class="panel">
+      <h3><span class="dot"></span>Base de alertas</h3>
+      <div class="dados-toolbar" id="dadosToolbar"></div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th class="col-placa">Placa</th><th>Data/Hora</th><th>Risco</th>
+              <th>Tipo de evento</th><th>Endereço</th><th>Status</th><th>Falso +</th>
+              <th>Analista tratativa</th><th class="num">Tempo resp.</th>
+            </tr>
+          </thead>
+          <tbody id="tblDados"></tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <button id="prevPage">← anterior</button>
+        <span id="pageInfo"></span>
+        <button id="nextPage">próxima →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ABA: USUÁRIOS -->
+  <div class="view" id="view-usuarios">
+
+    <div class="toprow filters-row" style="margin-bottom:18px;">
+      <div class="filters">
+        <div class="filter-field">
+          <label for="uDataIni">De</label>
+          <input type="date" id="uDataIni">
+        </div>
+        <div class="filter-field">
+          <label for="uDataFim">Até</label>
+          <input type="date" id="uDataFim">
+        </div>
+        <button class="reset-btn" id="uLimpar">limpar filtros</button>
+      </div>
+    </div>
+
+    <div class="kpis" style="grid-template-columns:repeat(4,1fr);">
+      <div class="kpi c-total"><div class="label">Analistas ativos</div><div class="value" id="kpiUsuariosAtivos">—</div></div>
+      <div class="kpi c-ok"><div class="label">Procedentes</div><div class="value" id="kpiUsuarioProcedentes">—</div><div class="hint">alertas tratados não marcados como falso positivo</div></div>
+      <div class="kpi c-time"><div class="label">Menor tempo médio</div><div class="value" id="kpiUsuarioMaisRapido">—</div></div>
+      <div class="kpi c-fp"><div class="label">Menor tx. falso +</div><div class="value" id="kpiUsuarioMenorFP">—</div></div>
+    </div>
+
+    <div class="grid2" style="margin-bottom:18px;">
+      <div class="panel">
+        <h3><span class="dot"></span>Tratativas por analista</h3>
+        <div class="chart-wrap" style="height:280px;"><canvas id="chartUsuariosBar"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3><span class="dot" style="background:var(--red)"></span>Falso + vs. verdadeiros por analista</h3>
+        <div class="chart-wrap" style="height:280px;"><canvas id="chartUsuariosFP"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:18px;">
+      <h3><span class="dot" style="background:var(--teal)"></span>Linha do tempo — tratativas por analista</h3>
+      <div class="chart-wrap" style="height:300px;"><canvas id="chartUsuariosLinha"></canvas></div>
+    </div>
+
+    <div class="panel" style="margin-bottom:18px;">
+      <h3><span class="dot" style="background:var(--amber)"></span>Detalhamento por analista</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Analista</th>
+            <th class="num">Tratativas</th>
+            <th class="num">% total</th>
+            <th class="num">Tempo médio</th>
+            <th class="num">Tempo mín.</th>
+            <th class="num">Tempo máx.</th>
+            <th class="num">Falso +</th>
+            <th class="num">Taxa falso +</th>
+            <th>Tipo mais frequente</th>
+          </tr>
+        </thead>
+        <tbody id="tblUsuariosDetalhe"></tbody>
+      </table>
+    </div>
+
+    <div class="panel" style="margin-bottom:18px;">
+      <h3><span class="dot" style="background:var(--blue)"></span>Tipos de alertas tratados por analista</h3>
+      <div style="overflow:auto;">
+        <table id="tblUsuariosTipos" style="min-width:600px;"></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="procedentesModal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3><span class="dot"></span>Alertas procedentes <span class="modal-count" id="procedentesModalCount"></span></h3>
+        <button class="modal-close" id="procedentesModalClose" aria-label="Fechar">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>ID</th><th class="col-placa">Placa</th><th>Data/Hora</th><th>Risco</th><th>Tipo de evento</th><th>Endereço</th><th>Analista</th><th class="num">Tempo resp.</th></tr></thead>
+            <tbody id="procedentesModalBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="placaModal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3><span class="dot" style="background:var(--teal)"></span><span id="placaModalTitle"></span></h3>
+        <button class="modal-close" id="placaModalClose" aria-label="Fechar">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="placa-modal-grid">
+          <div>
+            <h4 class="placa-modal-sub">Distribuição por tipo de alerta</h4>
+            <table>
+              <thead><tr><th>Tipo</th><th class="num">Qtde</th><th class="num">%</th><th class="num">Tempo méd.</th></tr></thead>
+              <tbody id="placaModalBody"></tbody>
+            </table>
+          </div>
+          <div>
+            <div class="chart-wrap" style="height:260px;"><canvas id="placaModalChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
