@@ -65,19 +65,20 @@
       </div>
     </div>
 
-    <div class="kpis">
+    <div class="kpis kpis-6">
       <div class="kpi c-total"><div class="label">Total de alertas</div><div class="value" id="kpiTotal">—</div></div>
       <div class="kpi c-ok"><div class="label">% tratados</div><div class="value" id="kpiTratados">—</div><div class="hint">qualquer interação no histórico conta como tratativa</div></div>
       <div class="kpi c-time"><div class="label">Tempo médio resp.</div><div class="value" id="kpiTempo">—</div></div>
       <div class="kpi c-fp"><div class="label">Taxa falso positivo</div><div class="value" id="kpiFP">—</div></div>
       <div class="kpi c-pend"><div class="label">Pendentes</div><div class="value" id="kpiPend">—</div></div>
+      <div class="kpi c-proc clickable" id="cardProcedentes" role="button" tabindex="0" title="Clique para ver os alertas procedentes"><div class="label">Procedentes</div><div class="value" id="kpiProcedentes">—</div><div class="hint">tratados e não falso positivo · clique para ver</div></div>
     </div>
 
     <div class="grid2">
       <div class="panel">
         <h3><span class="dot"></span>Alertas por tipo de evento</h3>
         <table>
-          <thead><tr><th>Tipo</th><th class="num">Qtde</th><th class="num">%</th><th class="num">Tempo méd.</th><th class="num">Falso +</th></tr></thead>
+          <thead><tr><th>Tipo</th><th class="num">Qtde</th><th class="num">%</th><th class="num">Tempo méd.</th><th class="num">Falso +</th><th class="num">Positivos</th></tr></thead>
           <tbody id="tblTipo"></tbody>
         </table>
       </div>
@@ -205,6 +206,23 @@
       <h3><span class="dot" style="background:var(--blue)"></span>Tipos de alertas tratados por analista</h3>
       <div style="overflow:auto;">
         <table id="tblUsuariosTipos" style="min-width:600px;"></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="procedentesModal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3><span class="dot"></span>Alertas procedentes <span class="modal-count" id="procedentesModalCount"></span></h3>
+        <button class="modal-close" id="procedentesModalClose" aria-label="Fechar">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>ID</th><th>Placa</th><th>Motorista</th><th>Data/Hora</th><th>Risco</th><th>Tipo de evento</th><th>Endereço</th><th>Analista</th><th class="num">Tempo resp.</th></tr></thead>
+            <tbody id="procedentesModalBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>

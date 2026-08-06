@@ -143,13 +143,14 @@ function groupByTipoEvento(data) {
   const map = {};
   data.forEach(a => {
     const t = a.tipoEvento || 'Não informado';
-    if (!map[t]) map[t] = { count: 0, fp: 0, tempos: [] };
+    if (!map[t]) map[t] = { count: 0, fp: 0, proc: 0, tempos: [] };
     map[t].count++;
     if (a.falsoPositivo) map[t].fp++;
+    if (a.tratado && !a.falsoPositivo) map[t].proc++;
     if (a.tempoResposta !== null) map[t].tempos.push(a.tempoResposta);
   });
   return Object.entries(map)
-    .map(([nome, v]) => ({ nome, count: v.count, fp: v.fp, tempoMedio: average(v.tempos) }))
+    .map(([nome, v]) => ({ nome, count: v.count, fp: v.fp, proc: v.proc, tempoMedio: average(v.tempos) }))
     .sort((a, b) => b.count - a.count);
 }
 
@@ -240,6 +241,9 @@ function renderDashboard(data) {
   document.getElementById('kpiTempo').textContent = fmtMin(kpis.tempoMedio);
   document.getElementById('kpiFP').textContent = fmtPct(kpis.taxaFp);
   document.getElementById('kpiPend').textContent = kpis.pendentes.toLocaleString('pt-BR');
+  const procedentesRows = data.filter(a => a.tratado && !a.falsoPositivo);
+  document.getElementById('kpiProcedentes').textContent = procedentesRows.length.toLocaleString('pt-BR');
+  window.__procedentesRows = procedentesRows;
 
   // --- tabela por tipo de evento ---
   const tipoArr = groupByTipoEvento(data);
@@ -251,6 +255,7 @@ function renderDashboard(data) {
       <td class="num"><div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:${pctTotal * 100}%;background:var(--blue)"></div></div>${fmtPct(pctTotal)}</div></td>
       <td class="num">${fmtMin(t.tempoMedio)}</td>
       <td class="num">${fmtPct(t.count ? t.fp / t.count : 0)}</td>
+      <td class="num">${t.proc.toLocaleString('pt-BR')}</td>
     </tr>`;
   }).join('');
 
@@ -410,6 +415,40 @@ window.AppDashboard = { renderDashboard };
  * e paginação porque aqui são milhares de linhas.
  */
 const PAGE_SIZE = 100;
+/* ===== Modal de alertas procedentes (abre ao clicar no card) ===== */
+const PROC_MODAL_LIMIT = 1000;
+function renderProcedentesModal() {
+  const rows = window.__procedentesRows || [];
+  const fmt = window.AppFormat;
+  const shown = rows.slice(0, PROC_MODAL_LIMIT);
+  document.getElementById('procedentesModalCount').textContent = rows.length > PROC_MODAL_LIMIT
+    ? `(exibindo ${PROC_MODAL_LIMIT.toLocaleString('pt-BR')} de ${rows.length.toLocaleString('pt-BR')} — refine o período)`
+    : `(${rows.length.toLocaleString('pt-BR')})`;
+  document.getElementById('procedentesModalBody').innerHTML = shown.map(a =>
+    `<tr><td>${a.id}</td><td>${a.placa||'—'}</td><td>${a.motorista||'—'}</td><td>${fmt.fmtDateTime(a.dataAlerta)}</td>` +
+    `<td class="risk-${a.risco}">${a.risco||'—'}</td><td>${a.tipoEvento||'—'}</td><td>${a.endereco||'—'}</td>` +
+    `<td>${a.usuario||'—'}</td><td class="num">${fmt.fmtMin(a.tempoResposta)}</td></tr>`
+  ).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;">nenhum alerta procedente no período</td></tr>';
+}
+function openProcedentesModal() { renderProcedentesModal(); const m = document.getElementById('procedentesModal'); if (m) m.hidden = false; }
+function closeProcedentesModal() { const m = document.getElementById('procedentesModal'); if (m) m.hidden = true; }
+(function () {
+  function setup() {
+    const card = document.getElementById('cardProcedentes');
+    if (card) {
+      card.addEventListener('click', openProcedentesModal);
+      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProcedentesModal(); } });
+    }
+    const closeBtn = document.getElementById('procedentesModalClose');
+    if (closeBtn) closeBtn.addEventListener('click', closeProcedentesModal);
+    const overlay = document.getElementById('procedentesModal');
+    if (overlay) overlay.addEventListener('click', e => { if (e.target === overlay) closeProcedentesModal(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeProcedentesModal(); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup);
+  else setup();
+})();
+
 let _dadosState = { rows: [], filtered: [], page: 1 };
 
 function badge(value, kind) {

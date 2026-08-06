@@ -195,7 +195,7 @@ main{padding:28px 32px 60px; max-width:none; margin:0 auto;}
 .reset-btn:hover{ border-color:var(--teal); color:var(--teal); }
 
 .kpis{display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:24px;}
-@media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:1000px){.kpis, .kpis.kpis-6{grid-template-columns:repeat(2,1fr);}}
 .kpi{
   background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 18px 16px;
   position:relative; overflow:hidden;
@@ -331,3 +331,21 @@ footer{ text-align:center; color:var(--muted); font-size:11.5px; font-family:'Je
   .rp-cals{ flex-direction:column; }
   .rp-cal{ width:100%; }
 }
+
+/* ===== Card clicável (Procedentes) + KPIs em 6 colunas ===== */
+.kpis.kpis-6{ grid-template-columns:repeat(6,1fr); }
+.kpi.c-proc::before{ background:var(--teal); }
+.kpi.clickable{ cursor:pointer; transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease; }
+.kpi.clickable:hover{ border-color:var(--teal); transform:translateY(-2px); box-shadow:0 8px 22px rgba(0,0,0,.28); }
+.kpi.clickable:active{ transform:translateY(0); }
+
+/* ===== Modal de dados ===== */
+.modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; z-index:200; padding:24px; }
+.modal-overlay[hidden]{ display:none; }
+.modal-box{ background:var(--panel); border:1px solid var(--line); border-radius:14px; width:min(1000px,95vw); max-height:85vh; display:flex; flex-direction:column; box-shadow:0 24px 60px rgba(0,0,0,.5); overflow:hidden; }
+.modal-head{ display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line); }
+.modal-head h3{ margin:0; font-size:14px; font-weight:600; display:flex; align-items:center; gap:8px; }
+.modal-count{ color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:11.5px; font-weight:400; }
+.modal-close{ background:transparent; border:1px solid var(--line); color:var(--muted); border-radius:8px; width:32px; height:32px; cursor:pointer; font-size:14px; transition:.15s; }
+.modal-close:hover{ border-color:var(--red); color:var(--red); }
+.modal-body{ padding:16px 20px; overflow:auto; }
