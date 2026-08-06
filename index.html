@@ -83,8 +83,18 @@
         </table>
       </div>
       <div class="panel">
-        <h3><span class="dot" style="background:var(--blue)"></span>Distribuição</h3>
-        <div class="chart-wrap"><canvas id="chartTipo"></canvas></div>
+        <h3><span class="dot" style="background:var(--blue)"></span>Distribuição por tipo</h3>
+        <div class="dist-duo">
+          <div class="dist-item">
+            <div class="dist-cap">todos os alertas</div>
+            <div class="chart-wrap"><canvas id="chartTipo"></canvas></div>
+          </div>
+          <div class="dist-item">
+            <div class="dist-cap">somente verdadeiros</div>
+            <div class="chart-wrap"><canvas id="chartTipoVerd"></canvas></div>
+          </div>
+        </div>
+        <div class="dist-legend" id="distLegend"></div>
       </div>
     </div>
 
@@ -96,7 +106,7 @@
       <div class="panel">
         <h3><span class="dot" style="background:var(--red)"></span>Por nível de risco</h3>
         <table>
-          <thead><tr><th>Risco</th><th class="num">Qtde</th><th class="num">%</th></tr></thead>
+          <thead><tr><th>Risco</th><th class="num">Qtde</th><th class="num">%</th><th class="num">Falso +</th><th class="num">Positivos</th></tr></thead>
           <tbody id="tblRisco"></tbody>
         </table>
       </div>
@@ -110,7 +120,7 @@
       <div class="panel">
         <h3><span class="dot"></span>Tratativas por analista</h3>
         <table>
-          <thead><tr><th>Analista</th><th class="num">Qtde</th><th class="num">Tempo méd.</th><th class="num">Falso +</th></tr></thead>
+          <thead><tr><th>Analista</th><th class="num">Qtde</th><th class="num">Tempo méd.</th><th class="num">Falso +</th><th class="num">Positivos</th></tr></thead>
           <tbody id="tblUsuario"></tbody>
         </table>
       </div>

@@ -158,11 +158,15 @@ function groupByRisco(data) {
   const map = {};
   data.forEach(a => {
     const r = a.risco || 'Não informado';
-    map[r] = (map[r] || 0) + 1;
+    if (!map[r]) map[r] = { count: 0, fp: 0, proc: 0 };
+    map[r].count++;
+    if (a.falsoPositivo) map[r].fp++;
+    if (a.tratado && !a.falsoPositivo) map[r].proc++;
   });
   const ordem = ['Alto', 'Médio', 'Baixo'];
-  const conhecidos = ordem.filter(r => map[r]).map(r => ({ nome: r, count: map[r] }));
-  const outros = Object.entries(map).filter(([k]) => !ordem.includes(k)).map(([nome, count]) => ({ nome, count }));
+  const mk = nome => ({ nome, count: map[nome].count, fp: map[nome].fp, proc: map[nome].proc });
+  const conhecidos = ordem.filter(r => map[r]).map(mk);
+  const outros = Object.keys(map).filter(k => !ordem.includes(k)).map(mk);
   return conhecidos.concat(outros);
 }
 
@@ -170,9 +174,11 @@ function topPlacas(data, limit = 10) {
   const map = {};
   data.forEach(a => {
     const p = a.placa || '—';
-    map[p] = (map[p] || 0) + 1;
+    if (!map[p]) map[p] = { count: 0, proc: 0 };
+    map[p].count++;
+    if (a.tratado && !a.falsoPositivo) map[p].proc++;
   });
-  return Object.entries(map).map(([nome, count]) => ({ nome, count }))
+  return Object.entries(map).map(([nome, v]) => ({ nome, count: v.count, proc: v.proc }))
     .sort((a, b) => b.count - a.count).slice(0, limit);
 }
 
@@ -180,9 +186,10 @@ function groupByUsuario(data) {
   const map = {};
   data.forEach(a => {
     if (!a.usuario) return;
-    if (!map[a.usuario]) map[a.usuario] = { count: 0, fp: 0, tempos: [], tipoMap: {}, diaMap: {} };
+    if (!map[a.usuario]) map[a.usuario] = { count: 0, fp: 0, proc: 0, tempos: [], tipoMap: {}, diaMap: {} };
     map[a.usuario].count++;
     if (a.falsoPositivo) map[a.usuario].fp++;
+    if (a.tratado && !a.falsoPositivo) map[a.usuario].proc++;
     if (a.tempoResposta !== null) map[a.usuario].tempos.push(a.tempoResposta);
     const t = a.tipoEvento || 'Outros';
     map[a.usuario].tipoMap[t] = (map[a.usuario].tipoMap[t] || 0) + 1;
@@ -196,7 +203,9 @@ function groupByUsuario(data) {
       nome,
       count: v.count,
       fp: v.fp,
+      proc: v.proc,
       taxaFp: v.count ? v.fp / v.count : 0,
+      taxaProc: v.count ? v.proc / v.count : 0,
       tempoMedio: average(v.tempos),
       tempoMin: v.tempos.length ? Math.min(...v.tempos) : null,
       tempoMax: v.tempos.length ? Math.max(...v.tempos) : null,
@@ -255,7 +264,7 @@ function renderDashboard(data) {
       <td class="num"><div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:${pctTotal * 100}%;background:var(--blue)"></div></div>${fmtPct(pctTotal)}</div></td>
       <td class="num">${fmtMin(t.tempoMedio)}</td>
       <td class="num">${fmtPct(t.count ? t.fp / t.count : 0)}</td>
-      <td class="num">${t.proc.toLocaleString('pt-BR')}</td>
+      <td class="num">${fmtPct(t.count ? t.proc / t.count : 0)}</td>
     </tr>`;
   }).join('');
 
@@ -268,6 +277,8 @@ function renderDashboard(data) {
       <td class="risk-${r.nome}">${r.nome}</td>
       <td class="num">${r.count}</td>
       <td class="num"><div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:${pctTotal * 100}%;background:${colorVar}"></div></div>${fmtPct(pctTotal)}</div></td>
+      <td class="num">${fmtPct(r.count ? r.fp / r.count : 0)}</td>
+      <td class="num">${fmtPct(r.count ? r.proc / r.count : 0)}</td>
     </tr>`;
   }).join('');
 
@@ -281,15 +292,16 @@ function renderDashboard(data) {
       <td class="num">${u.count}</td>
       <td class="num">${fmtMin(u.tempoMedio)}</td>
       <td class="num">${fmtPct(u.count ? u.fp / u.count : 0)}</td>
+      <td class="num">${fmtPct(u.count ? u.proc / u.count : 0)}</td>
     </tr>`).join('');
 
   // --- por dia ---
   const diaArr = groupByDia(data);
 
-  drawCharts(tipoArr, placaArr, diaArr);
+  drawCharts(tipoArr, placaArr, diaArr, groupByTipoEvento(procedentesRows));
 }
 
-function drawCharts(tipoArr, placaArr, diaArr) {
+function drawCharts(tipoArr, placaArr, diaArr, tipoVerdArr) {
   Object.values(_charts).forEach(c => c.destroy());
   const palette = ['#5B8DEF', '#36C2B4', '#F2A33C', '#E5484D', '#9B7BFF', '#3BC9DB', '#F783AC', '#94D82D', '#FFA94D'];
   const rootStyles = getComputedStyle(document.documentElement);
@@ -332,23 +344,43 @@ function drawCharts(tipoArr, placaArr, diaArr) {
     }
   };
 
+  // cor fixa por tipo (mesma nas duas pizzas e na legenda compartilhada)
+  const colorByTipo = {};
+  tipoArr.forEach((t, i) => { colorByTipo[t.nome] = palette[i % palette.length]; });
+
   _charts.tipo = new Chart(document.getElementById('chartTipo'), {
     type: 'doughnut',
-    data: { labels: tipoArr.map(t => t.nome), datasets: [{ data: tipoArr.map(t => t.count), backgroundColor: palette, borderColor: panelColor, borderWidth: 2 }] },
-    options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }, maintainAspectRatio: false },
+    data: { labels: tipoArr.map(t => t.nome), datasets: [{ data: tipoArr.map(t => t.count), backgroundColor: tipoArr.map(t => colorByTipo[t.nome]), borderColor: panelColor, borderWidth: 2 }] },
+    options: { plugins: { legend: { display: false } }, maintainAspectRatio: false },
     plugins: [tipoDataLabels]
   });
 
+  _charts.tipoVerd = new Chart(document.getElementById('chartTipoVerd'), {
+    type: 'doughnut',
+    data: { labels: tipoVerdArr.map(t => t.nome), datasets: [{ data: tipoVerdArr.map(t => t.count), backgroundColor: tipoVerdArr.map(t => colorByTipo[t.nome]), borderColor: panelColor, borderWidth: 2 }] },
+    options: { plugins: { legend: { display: false } }, maintainAspectRatio: false },
+    plugins: [tipoDataLabels]
+  });
+
+  // legenda única embaixo, compartilhada pelas duas pizzas
+  const distLegendEl = document.getElementById('distLegend');
+  if (distLegendEl) distLegendEl.innerHTML = tipoArr.map(t =>
+    `<span class="leg-item"><span class="leg-dot" style="background:${colorByTipo[t.nome]}"></span>${t.nome}</span>`
+  ).join('');
+
   _charts.placas = new Chart(document.getElementById('chartPlacas'), {
     type: 'bar',
-    data: { labels: placaArr.map(p => p.nome), datasets: [{ data: placaArr.map(p => p.count), backgroundColor: '#F2A33C', borderRadius: 4 }] },
+    data: { labels: placaArr.map(p => p.nome), datasets: [
+      { label: 'Total', data: placaArr.map(p => p.count), backgroundColor: '#F2A33C', borderRadius: 4 },
+      { label: 'Positivos', data: placaArr.map(p => p.proc), backgroundColor: '#36C2B4', borderRadius: 4 }
+    ] },
     options: {
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 10, font: { size: 11 } } } },
       scales: { x: { grid: { display: false } }, y: { grid: { color: rootStyles.getPropertyValue('--line').trim() || 'rgba(255,255,255,0.05)' } } },
       maintainAspectRatio: false,
       animation: { onComplete: function() {
         var chart = this, ctx = chart.ctx;
-        ctx.font = '10px JetBrains Mono, monospace';
+        ctx.font = '9px JetBrains Mono, monospace';
         ctx.fillStyle = rootStyles.getPropertyValue('--muted').trim() || '#7C8AA5';
         ctx.textAlign = 'center';
         chart.data.datasets.forEach(function(ds, di) {
