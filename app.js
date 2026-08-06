@@ -298,6 +298,8 @@ function renderDashboard(data) {
   // --- por dia ---
   const diaArr = groupByDia(data);
 
+  window.__dashData = data;
+  window.__dashProcedentes = procedentesRows;
   drawCharts(tipoArr, placaArr, diaArr, groupByTipoEvento(procedentesRows));
 }
 
@@ -388,9 +390,16 @@ function drawCharts(tipoArr, placaArr, diaArr, tipoVerdArr) {
             ctx.fillText(ds.data[i].toLocaleString('pt-BR'), bar.x, bar.y - 5);
           });
         });
-      }}
+      }},
+      onClick: function(evt, elems) {
+        if (!elems.length) return;
+        var idx = elems[0].index;
+        var placa = this.data.labels[idx];
+        openPlacaModal(placa);
+      }
     }
   });
+  document.getElementById('chartPlacas').style.cursor = 'pointer';
 
   const diaDataLabels = {
     id: 'diaDataLabels',
@@ -479,6 +488,61 @@ function closeProcedentesModal() { const m = document.getElementById('procedente
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup);
   else setup();
+})();
+
+/* ===== Modal detalhado de veículo (verdadeiros positivos por placa) ===== */
+let _placaChart = null;
+function openPlacaModal(placa) {
+  const data = (window.__dashProcedentes || []).filter(a => a.placa === placa);
+  const fmt = window.AppFormat;
+  const palette = ["#5B8DEF","#36C2B4","#F2A33C","#E5484D","#9B7BFF","#3BC9DB","#F783AC","#94D82D","#FFA94D"];
+  // agrupar por tipo
+  const map = {};
+  data.forEach(a => {
+    const t = a.tipoEvento || "Não informado";
+    if (!map[t]) map[t] = { count: 0, tempos: [] };
+    map[t].count++;
+    if (a.tempoResposta !== null) map[t].tempos.push(a.tempoResposta);
+  });
+  const tipoArr = Object.entries(map).map(([nome, v]) => ({
+    nome, count: v.count, tempoMedio: v.tempos.length ? v.tempos.reduce((a,b)=>a+b,0)/v.tempos.length : null
+  })).sort((a,b) => b.count - a.count);
+  const total = data.length;
+  // título
+  document.getElementById("placaModalTitle").textContent = placa + " — " + total.toLocaleString("pt-BR") + " verdadeiros positivos";
+  // tabela
+  document.getElementById("placaModalBody").innerHTML = tipoArr.map((t, i) => {
+    const pct = total ? t.count / total : 0;
+    const cor = palette[i % palette.length];
+    return `<tr><td><span class="leg-dot" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${cor};margin-right:8px;vertical-align:middle;"></span>${t.nome}</td><td class="num">${t.count}</td><td class="num">${fmt.fmtPct(pct)}</td><td class="num">${fmt.fmtMin(t.tempoMedio)}</td></tr>`;
+  }).join("") || '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px;">nenhum alerta procedente</td></tr>';
+  // gráfico
+  if (_placaChart) _placaChart.destroy();
+  const ctx = document.getElementById("placaModalChart");
+  if (ctx && tipoArr.length) {
+    const panelColor = getComputedStyle(document.documentElement).getPropertyValue("--panel").trim() || "#111A2E";
+    _placaChart = new Chart(ctx, {
+      type: "doughnut",
+      data: { labels: tipoArr.map(t=>t.nome), datasets: [{ data: tipoArr.map(t=>t.count), backgroundColor: palette.slice(0, tipoArr.length), borderColor: panelColor, borderWidth: 2 }] },
+      options: { plugins: { legend: { display: false } }, maintainAspectRatio: false },
+      plugins: [tipoDataLabels]
+    });
+  }
+  document.getElementById("placaModal").hidden = false;
+}
+function closePlacaModal() {
+  document.getElementById("placaModal").hidden = true;
+  if (_placaChart) { _placaChart.destroy(); _placaChart = null; }
+}
+(function(){
+  function setup(){
+    var close = document.getElementById("placaModalClose");
+    if (close) close.addEventListener("click", closePlacaModal);
+    var overlay = document.getElementById("placaModal");
+    if (overlay) overlay.addEventListener("click", function(e){ if(e.target===overlay) closePlacaModal(); });
+    document.addEventListener("keydown", function(e){ if(e.key==="Escape") closePlacaModal(); });
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",setup); else setup();
 })();
 
 let _dadosState = { rows: [], filtered: [], page: 1 };

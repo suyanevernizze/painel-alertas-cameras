@@ -237,6 +237,29 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="placaModal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3><span class="dot" style="background:var(--teal)"></span><span id="placaModalTitle"></span></h3>
+        <button class="modal-close" id="placaModalClose" aria-label="Fechar">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="placa-modal-grid">
+          <div>
+            <h4 class="placa-modal-sub">Distribuição por tipo de alerta</h4>
+            <table>
+              <thead><tr><th>Tipo</th><th class="num">Qtde</th><th class="num">%</th><th class="num">Tempo méd.</th></tr></thead>
+              <tbody id="placaModalBody"></tbody>
+            </table>
+          </div>
+          <div>
+            <div class="chart-wrap" style="height:260px;"><canvas id="placaModalChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <script src="app.js"></script>
